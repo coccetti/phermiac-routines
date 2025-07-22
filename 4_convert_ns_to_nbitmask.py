@@ -17,9 +17,12 @@ import numpy as np
 def read_nanoseconds(file_path):
     nanoseconds = []
     with open(file_path, mode='r') as file:
-        csv_reader = csv.DictReader(file)
-        for row in csv_reader:
-            nanoseconds.append(int(row['Nanoseconds']))
+        for line in file:
+            line = line.strip()
+            if line:  # Skip empty lines
+                # Convert the floating point time difference to nanoseconds
+                time_diff_seconds = float(line)
+                nanoseconds.append(int(time_diff_seconds * 1e9))  # Convert to nanoseconds
     return np.array(nanoseconds)
 
 def convert_to_nbit_binary_string(number, n):
@@ -34,9 +37,9 @@ def save_to_csv(data, file_path):
             writer.writerow([item])
 
 if __name__ == "__main__":
-    file_path = 'data/CERN-02.csv'
+    file_path = 'data/time_differences_C01-event_C02-1sec.csv'
     nanoseconds = read_nanoseconds(file_path)
-    n_bits = 8  # number of bits to keep [THIS IS THE NUMBER YOU WANNA CHANGE!!]
+    n_bits = 16  # number of bits to keep [THIS IS THE NUMBER YOU WANNA CHANGE!!]
     shift_value = 30 - n_bits  # 30 is the number of bits for nanoseconds
     mask = (1 << n_bits) - 1
     print(f"Number of bits to keep: {n_bits}")
@@ -45,6 +48,9 @@ if __name__ == "__main__":
     nanoseconds_nbit = [convert_to_nbit_binary_string(ns, n_bits) for ns in nanoseconds]
     print(f"np.array of nanoseconds converted into {n_bits} bits:\n{nanoseconds_nbit}")
 
-    output_file_path = 'data/nanoseconds_nbit.csv'
+    # Generate output filename by adding "_bits" to the input filename
+    from pathlib import Path
+    input_path = Path(file_path)
+    output_file_path = input_path.parent / f"{input_path.stem}_bits{input_path.suffix}"
     save_to_csv(nanoseconds_nbit, output_file_path)
     print(f"Converted nanoseconds saved to {output_file_path}")
