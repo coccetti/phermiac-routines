@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import cmath
 
 # read the binary file
-event_file_bin = 'data/time_differences_C01-event_C02-1sec_8bits.csv'
+event_file_bin = 'data/time_differences_ABS_C01-event_C02-1sec_8bits.csv'
 # Read the binary strings from the file
 event_bin_strings = []
 with open(event_file_bin, 'r') as f:
@@ -41,13 +41,17 @@ for binary_string in event_bin_strings:
 
     # Compute the total energy of the event (sum of energy values)
     # total_energy = sum(energy * (i + 1) for i, energy in enumerate(energy_values))
-    total_energy = sum(energy_values)
+    total_energy = sum(energy * 2**(16-i) for i, energy in enumerate(energy_values))
+    ## Basic formula for the energy of the event
+    # total_energy = sum(energy_values)
     all_total_energies.append(total_energy)
     print(f"Total energy for {binary_string}: {total_energy}")
 
+print(f"All total energies: {all_total_energies}")
+
 # Plot the histogram of the total energies
 plt.figure(figsize=(10, 6))
-plt.hist(all_total_energies, bins=30, color='skyblue', edgecolor='black')
+plt.hist(all_total_energies, bins=1500, color='skyblue', edgecolor='black')
 plt.xlabel('Total Energy')
 plt.ylabel('Frequency')
 plt.title('Histogram of Total Energy per Event')
