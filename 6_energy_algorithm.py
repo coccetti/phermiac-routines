@@ -3,7 +3,7 @@ import cmath
 import csv
 
 # Read the line in the file data/CERN-01_1event_nbit16.csv and print it
-with open('data/CERN-01_1event_nbit16.csv', 'r') as file:
+with open('data/CERN-01_event1221_nbit16.csv', 'r') as file:
     event_01_string = file.readline().strip()
     # Convert the string of digits to a numpy array of integers
     event_01 = np.array([int(digit) for digit in event_01_string])
@@ -12,7 +12,7 @@ with open('data/CERN-01_1event_nbit16.csv', 'r') as file:
 # Read all the lines in the file data/CERN-02_1sec_nbit16.csv
 event_02_arrays = []
 line_strings = []
-with open('data/CERN-02_1sec_nbit16.csv', 'r') as file:
+with open('data/CERN-02_sec1221_nbit16.csv', 'r') as file:
     for line in file:
         line_string = line.strip()
         line_strings.append(line_string)
@@ -57,10 +57,10 @@ for event_02_array in event_02_arrays:
     # Calculate weighted energy sum with exponential weights
     total_energy = 0
     for i, energy in enumerate(summed_energy):
-        weight = 1.3 ** (16-i)  # Exponential weight factor
-        # weight = 2 ** (16-i)
+        # weight = 1.3 ** (16-i)  # Exponential weight factor
+        weight = 2 ** (16-i)
         # weight = (16-i)**2
-        # weight = 16-i
+        # weight = 16-i # This works better
         # weight = 1
         weighted_energy = energy * weight
         total_energy += weighted_energy

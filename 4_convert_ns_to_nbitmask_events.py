@@ -38,7 +38,7 @@ def save_to_csv(data, file_path):
             writer.writerow([item])
 
 if __name__ == "__main__":
-    file_path = 'data/CERN-01_1event.csv'
+    file_path = 'data/CERN-01_event1221.csv'
     nanoseconds = read_nanoseconds(file_path)
     n_bits = 16  # number of bits to keep [THIS IS THE NUMBER YOU WANNA CHANGE!!]
     shift_value = 30 - n_bits  # 30 is the number of bits for nanoseconds
