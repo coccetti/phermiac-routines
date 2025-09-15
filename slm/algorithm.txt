@@ -1,0 +1,30 @@
+
+- Define a matrix of pixels of 1024 rows x 1280 columns.
+- Define:
+    - input_resolution_bits = 16
+    - numbers_to_compare = 8
+- Divide the matrix into a number of macropixels defined by:
+    - 16 columns, or better yet, use input_resolution_bits
+    - 8 rows, or better yet, use numbers_to_compare
+- The total macropixels will therefore be input_resolution_bits * numbers_to_compare, or 16 * 8 in this case.
+- Each macropixel will have two indices that identify it: the row and the column. input_resolution_bits numbers the columns; numbers_to_compare numbers the rows;
+- Create a function to assign a value to a chosen macropixel. All pixels inside a macropixel will have the same value of the macropixel.
+ -Set the values of all macropixels (therefore of all pixels in the macropixel) to 0
+
+- Read the number in the file: slm/CERN-01_event1_nbit16.csv
+- Each digit of this number corresponds to a value to be assigned to a macropixel in each raw
+    - If the digit is 1 then the value to add to the macropixel (therefore to each pixel of the macropixel) would be pi;
+    - If the digit is 0 then the value to add to the macropixel (therefore to each pixel of the macropixel) would be 0;
+- This number is the same for all the macropixels raw
+
+
+- Then open and read the first 8, i.e. numbers_to_compare, values in the file slm/CERN-02_sec1_nbit16.csv
+- Each of these numbers correspond to a macropixel raw.
+    - So, for the first number modify the first raw of macropixels:
+    - If the digit is 1 then the value to add to the macropixel (therefore to each pixel of the macropixel) would be pi;
+    - If the digit is 0 then the value to add to the macropixel (therefore to each pixel of the macropixel) would be 0;
+    - The second number to read is valid for the second raw and so on;
+- Always remember that 2*pi = 0; take care that 2*pi = 0 always
+- I need an image at the end, with resolution of pixels 1024 rows x 1280 columns:
+- If the value of the pixel is 0 use white
+- If the value of the pixel is pi use black
