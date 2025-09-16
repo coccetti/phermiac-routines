@@ -79,6 +79,62 @@ def read_binary_data(filename):
         print(f"Error: File {filename} not found")
         return None
 
+def save_image_with_grid(matrix, macropixel_rows, macropixel_cols, numbers_to_compare, 
+                        input_resolution_bits, filename, title, show=True):
+    """
+    Save and optionally display an image with macropixel grid and indices.
+    
+    Args:
+        matrix: The pixel matrix
+        macropixel_rows: Height of each macropixel in pixels
+        macropixel_cols: Width of each macropixel in pixels
+        numbers_to_compare: Number of macropixel rows
+        input_resolution_bits: Number of macropixel columns
+        filename: Output filename
+        title: Title for the plot
+        show: Whether to display the image on screen
+    """
+    # Convert phase values to binary image
+    # 0 -> white (1), pi -> black (0)
+    binary_image = (matrix == 0).astype(int)
+    
+    # Display the image with macropixel grid and indices
+    plt.figure(figsize=(15, 10))
+    plt.imshow(binary_image, cmap='gray', aspect='equal')
+    plt.title(title)
+    plt.xlabel('Pixel Columns (1280)')
+    plt.ylabel('Pixel Rows (1024)')
+    
+    # Add macropixel grid lines
+    for i in range(numbers_to_compare + 1):
+        y_pos = i * macropixel_rows
+        plt.axhline(y=y_pos, color='red', linewidth=0.5, alpha=0.7)
+    
+    for i in range(input_resolution_bits + 1):
+        x_pos = i * macropixel_cols
+        plt.axvline(x=x_pos, color='red', linewidth=0.5, alpha=0.7)
+    
+    # Add macropixel indices
+    for row_idx in range(numbers_to_compare):
+        for col_idx in range(input_resolution_bits):
+            # Calculate center of macropixel
+            center_y = (row_idx + 0.5) * macropixel_rows
+            center_x = (col_idx + 0.5) * macropixel_cols
+            
+            # Add text with row,column indices
+            plt.text(center_x, center_y, f'({row_idx},{col_idx})', 
+                    ha='center', va='center', fontsize=6, 
+                    color='red', weight='bold', alpha=0.8)
+    
+    # Save the image with grid and indices
+    plt.savefig(filename, dpi=150, bbox_inches='tight')
+    print(f"Image saved as: {filename}")
+    
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
 def process_slm_algorithm():
     """
     Main function to process the SLM algorithm.
@@ -119,6 +175,14 @@ def process_slm_algorithm():
         for row_idx in range(numbers_to_compare):
             assign_macropixel_value(pixel_matrix, row_idx, col_idx, value, 
                                   macropixel_rows, macropixel_cols)
+    
+    # Step 4.5: Save and show image after CERN-01 processing
+    print("\nSaving and showing image after CERN-01 processing...")
+    save_image_with_grid(pixel_matrix, macropixel_rows, macropixel_cols, 
+                        numbers_to_compare, input_resolution_bits,
+                        'slm_step4_cern01_result.png', 
+                        'SLM Algorithm - After CERN-01 Processing\n(White=0, Black=π)',
+                        show=True)
     
     # Step 5: Read CERN-02_sec1_nbit16.csv (first numbers_to_compare values)
     cern02_file = "CERN-02_sec1_nbit16.csv"
@@ -162,40 +226,12 @@ def process_slm_algorithm():
     # 0 -> white (1), pi -> black (0)
     binary_image = (pixel_matrix == 0).astype(int)
     
-    # Display the image with macropixel grid and indices
-    plt.figure(figsize=(15, 10))
-    plt.imshow(binary_image, cmap='gray', aspect='equal')
-    plt.title('SLM Algorithm Result\n(White=0, Black=π)')
-    plt.xlabel('Pixel Columns (1280)')
-    plt.ylabel('Pixel Rows (1024)')
-    
-    # Add macropixel grid lines
-    for i in range(numbers_to_compare + 1):
-        y_pos = i * macropixel_rows
-        plt.axhline(y=y_pos, color='red', linewidth=0.5, alpha=0.7)
-    
-    for i in range(input_resolution_bits + 1):
-        x_pos = i * macropixel_cols
-        plt.axvline(x=x_pos, color='red', linewidth=0.5, alpha=0.7)
-    
-    # Add macropixel indices
-    for row_idx in range(numbers_to_compare):
-        for col_idx in range(input_resolution_bits):
-            # Calculate center of macropixel
-            center_y = (row_idx + 0.5) * macropixel_rows
-            center_x = (col_idx + 0.5) * macropixel_cols
-            
-            # Add text with row,column indices
-            plt.text(center_x, center_y, f'({row_idx},{col_idx})', 
-                    ha='center', va='center', fontsize=6, 
-                    color='red', weight='bold', alpha=0.8)
-    
-    # plt.colorbar(label='Pixel Value')
-    
-    # Save the image with grid and indices
-    output_filename = 'slm_result.png'
-    plt.savefig(output_filename, dpi=150, bbox_inches='tight')
-    print(f"Image saved as: {output_filename}")
+    # Save and show the final image with grid and indices
+    save_image_with_grid(pixel_matrix, macropixel_rows, macropixel_cols, 
+                        numbers_to_compare, input_resolution_bits,
+                        'slm_result.png', 
+                        'SLM Algorithm Result\n(White=0, Black=π)',
+                        show=True)
     
     # Create a clean image without axes, descriptions, or indices
     plt.figure(figsize=(12.8, 10.24), dpi=100)  # 1280x1024 pixels at 100 DPI
@@ -219,8 +255,6 @@ def process_slm_algorithm():
     print(f"Black pixels (value=π): {np.sum(binary_image == 0)}")
     print(f"Unique phase values: {len(np.unique(pixel_matrix))}")
     print(f"Phase value range: {np.min(pixel_matrix):.3f} to {np.max(pixel_matrix):.3f}")
-    
-    plt.show()
     
     return pixel_matrix, binary_image
 
