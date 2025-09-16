@@ -6,6 +6,8 @@ This script implements the algorithm described in algorithm.txt:
 - Creates a 1024x1280 pixel matrix divided into macropixels
 - Reads binary data from CSV files and assigns phase values
 - Generates a final image based on phase values
+
+September, 2025
 """
 
 import numpy as np
