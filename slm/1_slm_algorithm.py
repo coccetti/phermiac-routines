@@ -97,8 +97,8 @@ def save_image_with_grid(matrix, macropixel_rows, macropixel_cols, numbers_to_co
         show: Whether to display the image on screen
     """
     # Convert phase values to binary image
-    # 0 -> white (1), pi -> black (0)
-    binary_image = (matrix == 0).astype(int)
+    # 0 -> black (0), pi -> white (1)
+    binary_image = (matrix == np.pi).astype(int)
     
     # Display the image with macropixel grid and indices
     plt.figure(figsize=(15, 10))
@@ -183,7 +183,7 @@ def process_slm_algorithm():
     save_image_with_grid(pixel_matrix, macropixel_rows, macropixel_cols, 
                         numbers_to_compare, input_resolution_bits,
                         'slm_step4_cern01_result.png', 
-                        'SLM Algorithm - After CERN-01 Processing\n(White=0, Black=π)',
+                        'SLM Algorithm - After CERN-01 Processing\n(Black=0, White=π)',
                         show=True)
     
     # Step 5: Read CERN-02_sec1_nbit16.csv (first numbers_to_compare values)
@@ -225,14 +225,14 @@ def process_slm_algorithm():
     print("\nGenerating final image...")
     
     # Convert phase values to binary image
-    # 0 -> white (1), pi -> black (0)
-    binary_image = (pixel_matrix == 0).astype(int)
+    # 0 -> black (0), pi -> white (1)
+    binary_image = (pixel_matrix == np.pi).astype(int)
     
     # Save and show the final image with grid and indices
     save_image_with_grid(pixel_matrix, macropixel_rows, macropixel_cols, 
                         numbers_to_compare, input_resolution_bits,
                         'slm_result.png', 
-                        'SLM Algorithm Result\n(White=0, Black=π)',
+                        'SLM Algorithm Result\n(Black=0, White=π)',
                         show=True)
     
     # Create a clean image without axes, descriptions, or indices
@@ -253,8 +253,8 @@ def process_slm_algorithm():
     # Show some statistics
     print(f"\nStatistics:")
     print(f"Total pixels: {pixel_matrix.size}")
-    print(f"White pixels (value=0): {np.sum(binary_image == 1)}")
-    print(f"Black pixels (value=π): {np.sum(binary_image == 0)}")
+    print(f"Black pixels (value=0): {np.sum(binary_image == 0)}")
+    print(f"White pixels (value=π): {np.sum(binary_image == 1)}")
     print(f"Unique phase values: {len(np.unique(pixel_matrix))}")
     print(f"Phase value range: {np.min(pixel_matrix):.3f} to {np.max(pixel_matrix):.3f}")
     

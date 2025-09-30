@@ -113,9 +113,24 @@ def write_image_to_slm(image_path):
             pixels = np.array(im_gray)
             flat_pixels = pixels.flatten()
 
-            # Copy the pixel data into the ctypes array
-            for i in range(min(len(flat_pixels), array_size)):
-                farray[i] = flat_pixels[i]
+            # Convert pixel values to SLM phase values
+            # Black (0) → phase shift 0 → SLM value 0
+            # White (255) → phase shift π → SLM value 108
+            # 2π corresponds to SLM value 217
+            slm_values = np.zeros_like(flat_pixels, dtype=np.uint8)
+            for i in range(len(flat_pixels)):
+                pixel_value = flat_pixels[i]
+                if pixel_value == 0:  # Black pixel
+                    slm_values[i] = 0  # Phase shift 0
+                elif pixel_value == 255:  # White pixel
+                    slm_values[i] = 108  # Phase shift π
+                else:  # Grayscale values - linear interpolation
+                    # Map 0-255 to 0-108 (0 to π)
+                    slm_values[i] = int((pixel_value / 255.0) * 108)
+
+            # Copy the SLM values into the ctypes array
+            for i in range(min(len(slm_values), array_size)):
+                farray[i] = slm_values[i]
 
     except Exception as e:
         print(f"An error occurred while processing the image: {e}")
