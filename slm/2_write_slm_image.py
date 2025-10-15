@@ -31,7 +31,8 @@ def showOn2ndDisplay(monitorNo, windowNo, x, xShift, y, yShift, array):
     """
     try:
         # Load the DLL library for SLM control
-        Lcoslib = windll.LoadLibrary("Image_Control.dll")
+        # Check the path !! 
+        Lcoslib = windll.LoadLibrary("./Image_Control.dll")
 
         # Configure the SLM display window settings
         Window_Settings = Lcoslib.Window_Settings
