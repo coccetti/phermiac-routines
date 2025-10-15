@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-SLM (Spatial Light Modulator) Algorithm Implementation - Chessboard Pattern
+SLM (Spatial Light Modulator) Algorithm Implementation
 
-This script creates a chessboard pattern for SLM testing:
+This script implements the algorithm described in algorithm.txt:
 - Creates a 1024x1280 pixel matrix divided into macropixels
-- Generates an alternating black and white chessboard pattern
-- Assigns phase values (0 for black, π for white) to macropixels
-- Generates final images with and without grid overlays
+- Reads binary data from CSV files and assigns phase values
+- Generates 8-bit BMP files for SLM hardware (Black=0, White=108)
+- Also creates PNG reference images with grid overlays
 
 September, 2025
 """
@@ -15,6 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import csv
 import os
+from PIL import Image
 
 def create_slm_matrix():
     """
@@ -27,14 +28,14 @@ def create_slm_matrix():
     input_resolution_bits = 16
     numbers_to_compare = 24
     total_rows = 1024
-    total_cols = 1272
+    total_cols = 1280
     
     # Create pixel matrix initialized to 0
     pixel_matrix = np.zeros((total_rows, total_cols), dtype=float)
     
     # Calculate macropixel dimensions
-    macropixel_rows = total_rows // numbers_to_compare  # 1024 // 24 = 42
-    macropixel_cols = total_cols // input_resolution_bits  # 1272 // 16 = 79
+    macropixel_rows = total_rows // numbers_to_compare  # 1024 // 8 = 128
+    macropixel_cols = total_cols // input_resolution_bits  # 1280 // 16 = 80
     
     print(f"Matrix size: {total_rows} x {total_cols}")
     print(f"Macropixel size: {macropixel_rows} x {macropixel_cols}")
@@ -105,7 +106,7 @@ def save_image_with_grid(matrix, macropixel_rows, macropixel_cols, numbers_to_co
     plt.figure(figsize=(15, 10))
     plt.imshow(binary_image, cmap='gray', aspect='equal')
     plt.title(title)
-    plt.xlabel('Pixel Columns (1272)')
+    plt.xlabel('Pixel Columns (1280)')
     plt.ylabel('Pixel Rows (1024)')
     
     # Add macropixel grid lines
@@ -140,10 +141,10 @@ def save_image_with_grid(matrix, macropixel_rows, macropixel_cols, numbers_to_co
 
 def process_slm_algorithm():
     """
-    Main function to process the SLM algorithm with chessboard pattern.
+    Main function to process the SLM algorithm.
     """
-    print("Starting SLM Algorithm Implementation - Chessboard Pattern")
-    print("=" * 60)
+    print("Starting SLM Algorithm Implementation")
+    print("=" * 50)
     
     # Define parameters
     input_resolution_bits = 16
@@ -152,23 +153,87 @@ def process_slm_algorithm():
     # Step 1: Create the pixel matrix and macropixel structure
     pixel_matrix, macropixel_rows, macropixel_cols = create_slm_matrix()
     
-    # Step 2: Create chessboard pattern
-    print("\nCreating chessboard pattern...")
-    for row_idx in range(numbers_to_compare):
-        for col_idx in range(input_resolution_bits):
-            # Chessboard pattern: (row + col) % 2 determines the color
-            if (row_idx + col_idx) % 2 == 0:
-                value = 0  # Black
-            else:
-                value = np.pi  # White
-            
-            # Apply to the specific macropixel
+    # Step 2: Initialize all macropixels to 0 (already done in matrix creation)
+    print("\nAll macropixels initialized to 0")
+    
+    # Step 3: Read CERN-01_event1_nbit16.csv
+    cern01_file = "CERN-01_event1_nbit16.csv"
+    print(f"\nReading {cern01_file}...")
+    cern01_data = read_binary_data(cern01_file)
+    
+    if cern01_data is None:
+        return
+    
+    print(f"CERN-01 data: {cern01_data}")
+    print(f"Length: {len(cern01_data)} bits")
+    
+    # Step 4: Process CERN-01 data - apply to all rows
+    print("\nProcessing CERN-01 data (applying to all macropixel rows)...")
+    for col_idx, digit in enumerate(cern01_data):
+        if digit == '1':
+            value = np.pi
+        else:
+            value = 0
+        
+        # Apply to all macropixel rows
+        for row_idx in range(numbers_to_compare):
             assign_macropixel_value(pixel_matrix, row_idx, col_idx, value, 
                                   macropixel_rows, macropixel_cols)
     
-    print(f"Chessboard pattern created with {numbers_to_compare} rows x {input_resolution_bits} columns")
+    # Step 4.5: Save and show image after CERN-01 processing
+    print("\nSaving and showing image after CERN-01 processing...")
+    save_image_with_grid(pixel_matrix, macropixel_rows, macropixel_cols, 
+                        numbers_to_compare, input_resolution_bits,
+                        'slm_step4_cern01_result.png', 
+                        'SLM Algorithm - After CERN-01 Processing\n(Black=0, White=π)',
+                        show=True)
     
-    # Step 3: Generate final image
+    # Create 8-bit BMP after CERN-01 processing
+    print("\nCreating 8-bit BMP after CERN-01 processing...")
+    binary_image_step4 = (pixel_matrix == np.pi).astype(int)
+    bmp_image_step4 = (binary_image_step4 * 108).astype(np.uint8)  # White = 108, Black = 0
+    pil_image_step4 = Image.fromarray(bmp_image_step4, mode='L')
+    pil_image_step4.save('slm_step4_cern01_result.bmp', 'BMP')
+    print(f"8-bit BMP saved as: slm_step4_cern01_result.bmp")
+    print(f"Image size: {pil_image_step4.size[0]} x {pil_image_step4.size[1]} pixels")
+    print(f"Color mapping: Black=0, White=108")
+    
+    # Step 5: Read CERN-02_sec1_nbit16.csv (first numbers_to_compare values)
+    cern02_file = "CERN-02_sec1_nbit16.csv"
+    print(f"\nReading first {numbers_to_compare} values from {cern02_file}...")
+    
+    try:
+        with open(cern02_file, 'r') as file:
+            reader = csv.reader(file)
+            cern02_data = []
+            for i, row in enumerate(reader):
+                if i >= numbers_to_compare:  # Only read first numbers_to_compare rows
+                    break
+                cern02_data.append(row[0])
+    except FileNotFoundError:
+        print(f"Error: File {cern02_file} not found")
+        return
+    
+    print(f"CERN-02 data (first {numbers_to_compare}): {cern02_data}")
+    
+    # Step 6: Process CERN-02 data - apply to specific rows
+    print("\nProcessing CERN-02 data (applying to specific macropixel rows)...")
+    for row_idx, binary_string in enumerate(cern02_data):
+        for col_idx, digit in enumerate(binary_string):
+            if digit == '1':
+                value = np.pi
+            else:
+                value = 0
+            
+            # Add to existing value (modulo 2*pi)
+            current_value = pixel_matrix[row_idx * macropixel_rows, col_idx * macropixel_cols]
+            new_value = (current_value + value) % (2 * np.pi)
+            
+            # Apply to the specific macropixel
+            assign_macropixel_value(pixel_matrix, row_idx, col_idx, new_value, 
+                                  macropixel_rows, macropixel_cols)
+    
+    # Step 7: Generate final image
     print("\nGenerating final image...")
     
     # Convert phase values to binary image
@@ -178,21 +243,32 @@ def process_slm_algorithm():
     # Save and show the final image with grid and indices
     save_image_with_grid(pixel_matrix, macropixel_rows, macropixel_cols, 
                         numbers_to_compare, input_resolution_bits,
-                        'slm_chessboard_result.png', 
-                        'SLM Algorithm - Chessboard Pattern\n(Black=0, White=π)',
+                        'slm_result.png', 
+                        'SLM Algorithm Result\n(Black=0, White=π)',
                         show=True)
     
-    # Create a clean image without axes, descriptions, or indices
-    plt.figure(figsize=(12.72, 10.24), dpi=100)  # 1272x1024 pixels at 100 DPI
+    # Create 8-bit BMP files for final result
+    print("\nCreating 8-bit BMP files for final result...")
+    
+    # Full size BMP (1024x1280)
+    bmp_image_full = (binary_image * 108).astype(np.uint8)  # White = 108, Black = 0
+    pil_image_full = Image.fromarray(bmp_image_full, mode='L')
+    pil_image_full.save('slm_result_1024x1280.bmp', 'BMP')
+    print(f"Full size BMP saved as: slm_result_1024x1280.bmp")
+    print(f"Image size: {pil_image_full.size[0]} x {pil_image_full.size[1]} pixels")
+    print(f"Color mapping: Black=0, White=108")
+    
+    # Create a clean image without axes, descriptions, or indices for PNG reference
+    plt.figure(figsize=(12.8, 10.24), dpi=100)  # 1280x1024 pixels at 100 DPI
     plt.imshow(binary_image, cmap='gray', aspect='equal')
     plt.axis('off')  # Remove all axes and labels
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)  # Remove margins
     
-    # Save the clean image
-    clean_output_filename = 'slm_chessboard_clean.png'
+    # Save the clean PNG reference image
+    clean_output_filename = 'slm_clean.png'
     plt.savefig(clean_output_filename, dpi=100, bbox_inches='tight', 
                 pad_inches=0, facecolor='white', edgecolor='none')
-    print(f"Clean chessboard image saved as: {clean_output_filename}")
+    print(f"Clean reference PNG saved as: {clean_output_filename}")
     
     # Close the clean plot to avoid showing it
     plt.close()
