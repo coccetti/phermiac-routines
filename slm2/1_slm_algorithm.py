@@ -5,8 +5,17 @@ SLM (Spatial Light Modulator) Algorithm Implementation
 This script implements the algorithm described in algorithm.txt:
 - Creates a 1024x1280 pixel matrix divided into macropixels
 - Reads binary data from CSV files and assigns phase values
-- Generates 8-bit BMP files for SLM hardware (Black=0, White=108)
+- Generates 8-bit BMP files for SLM hardware
 - Also creates PNG reference images with grid overlays
+
+CONFIGURATION:
+- Modify NUMBERS_TO_COMPARE (default: 24) to change number of macropixel rows
+- Modify INPUT_RESOLUTION_BITS (default: 16) to change number of macropixel columns
+- Modify TOTAL_ROWS (default: 1024) to change total pixel rows
+- Modify TOTAL_COLS (default: 1280) to change total pixel columns
+- Modify PI_WHITE_VALUE (default: 108) to change the gray value for white pixels in BMP
+- Modify CERN01_FILE to specify the CSV file for CERN-01 data
+- Modify CERN02_FILE to specify the CSV file for CERN-02 data
 
 September, 2025
 """
@@ -17,6 +26,15 @@ import csv
 import os
 from PIL import Image
 
+# Configuration parameters - modify these to change the SLM pattern
+NUMBERS_TO_COMPARE = 24     # Number of macropixel rows (height)
+INPUT_RESOLUTION_BITS = 16  # Number of macropixel columns (width)
+TOTAL_ROWS = 720           # 1024 Total number of pixel rows
+TOTAL_COLS = 480           # 1272 Total number of pixel columns
+PI_WHITE_VALUE = 108        # Gray value for white pixels in BMP (0-255)
+TELESCOPE_01_FILE = "CERN-01_event1_nbit16.csv"  # CSV file for CERN-01 data
+TELESCOPE_02_FILE = "CERN-02_sec1_nbit16.csv"    # CSV file for CERN-02 data
+
 def create_slm_matrix():
     """
     Create the SLM pixel matrix and macropixel structure.
@@ -24,11 +42,11 @@ def create_slm_matrix():
     Returns:
         tuple: (pixel_matrix, macropixel_rows, macropixel_cols)
     """
-    # Define parameters
-    input_resolution_bits = 16
-    numbers_to_compare = 24
-    total_rows = 1024
-    total_cols = 1280
+    # Use global configuration parameters
+    input_resolution_bits = INPUT_RESOLUTION_BITS
+    numbers_to_compare = NUMBERS_TO_COMPARE
+    total_rows = TOTAL_ROWS
+    total_cols = TOTAL_COLS
     
     # Create pixel matrix initialized to 0
     pixel_matrix = np.zeros((total_rows, total_cols), dtype=float)
@@ -145,10 +163,14 @@ def process_slm_algorithm():
     """
     print("Starting SLM Algorithm Implementation")
     print("=" * 50)
+    print(f"Matrix size: {TOTAL_ROWS} x {TOTAL_COLS} pixels")
+    print(f"Macropixel grid: {INPUT_RESOLUTION_BITS} columns x {NUMBERS_TO_COMPARE} rows")
+    print(f"White value: {PI_WHITE_VALUE} (0-255 range)")
+    print(f"CSV files: {TELESCOPE_01_FILE}, {TELESCOPE_02_FILE}")
     
-    # Define parameters
-    input_resolution_bits = 16
-    numbers_to_compare = 24
+    # Use global configuration parameters
+    input_resolution_bits = INPUT_RESOLUTION_BITS
+    numbers_to_compare = NUMBERS_TO_COMPARE
     
     # Step 1: Create the pixel matrix and macropixel structure
     pixel_matrix, macropixel_rows, macropixel_cols = create_slm_matrix()
@@ -156,8 +178,8 @@ def process_slm_algorithm():
     # Step 2: Initialize all macropixels to 0 (already done in matrix creation)
     print("\nAll macropixels initialized to 0")
     
-    # Step 3: Read CERN-01_event1_nbit16.csv
-    cern01_file = "CERN-01_event1_nbit16.csv"
+    # Step 3: Read CERN-01 CSV file
+    cern01_file = TELESCOPE_01_FILE
     print(f"\nReading {cern01_file}...")
     cern01_data = read_binary_data(cern01_file)
     
@@ -180,26 +202,34 @@ def process_slm_algorithm():
             assign_macropixel_value(pixel_matrix, row_idx, col_idx, value, 
                                   macropixel_rows, macropixel_cols)
     
+    # Create plots folder if it doesn't exist
+    plots_folder = "plots"
+    if not os.path.exists(plots_folder):
+        os.makedirs(plots_folder)
+        print(f"Created folder: {plots_folder}")
+    
     # Step 4.5: Save and show image after CERN-01 processing
     print("\nSaving and showing image after CERN-01 processing...")
+    png_filename_step4 = os.path.join(plots_folder, f'slm_step4_cern01_{pixel_matrix.shape[0]}x{pixel_matrix.shape[1]}_r{numbers_to_compare}_c{input_resolution_bits}.png')
     save_image_with_grid(pixel_matrix, macropixel_rows, macropixel_cols, 
                         numbers_to_compare, input_resolution_bits,
-                        'slm_step4_cern01_result.png', 
+                        png_filename_step4, 
                         'SLM Algorithm - After CERN-01 Processing\n(Black=0, White=π)',
                         show=True)
     
     # Create 8-bit BMP after CERN-01 processing
     print("\nCreating 8-bit BMP after CERN-01 processing...")
     binary_image_step4 = (pixel_matrix == np.pi).astype(int)
-    bmp_image_step4 = (binary_image_step4 * 108).astype(np.uint8)  # White = 108, Black = 0
+    bmp_image_step4 = (binary_image_step4 * PI_WHITE_VALUE).astype(np.uint8)  # Use configurable white value
     pil_image_step4 = Image.fromarray(bmp_image_step4, mode='L')
-    pil_image_step4.save('slm_step4_cern01_result.bmp', 'BMP')
-    print(f"8-bit BMP saved as: slm_step4_cern01_result.bmp")
+    bmp_filename_step4 = os.path.join(plots_folder, f'slm_step4_cern01_{pixel_matrix.shape[0]}x{pixel_matrix.shape[1]}_r{numbers_to_compare}_c{input_resolution_bits}_w{PI_WHITE_VALUE}.bmp')
+    pil_image_step4.save(bmp_filename_step4, 'BMP')
+    print(f"8-bit BMP saved as: {bmp_filename_step4}")
     print(f"Image size: {pil_image_step4.size[0]} x {pil_image_step4.size[1]} pixels")
-    print(f"Color mapping: Black=0, White=108")
+    print(f"Color mapping: Black=0, White={PI_WHITE_VALUE}")
     
-    # Step 5: Read CERN-02_sec1_nbit16.csv (first numbers_to_compare values)
-    cern02_file = "CERN-02_sec1_nbit16.csv"
+    # Step 5: Read CERN-02 CSV file (first numbers_to_compare values)
+    cern02_file = TELESCOPE_02_FILE
     print(f"\nReading first {numbers_to_compare} values from {cern02_file}...")
     
     try:
@@ -241,22 +271,24 @@ def process_slm_algorithm():
     binary_image = (pixel_matrix == np.pi).astype(int)
     
     # Save and show the final image with grid and indices
+    png_filename_final = os.path.join(plots_folder, f'slm_result_{pixel_matrix.shape[0]}x{pixel_matrix.shape[1]}_r{numbers_to_compare}_c{input_resolution_bits}.png')
     save_image_with_grid(pixel_matrix, macropixel_rows, macropixel_cols, 
                         numbers_to_compare, input_resolution_bits,
-                        'slm_result.png', 
+                        png_filename_final, 
                         'SLM Algorithm Result\n(Black=0, White=π)',
                         show=True)
     
     # Create 8-bit BMP files for final result
     print("\nCreating 8-bit BMP files for final result...")
     
-    # Full size BMP (1024x1280)
-    bmp_image_full = (binary_image * 108).astype(np.uint8)  # White = 108, Black = 0
+    # Full size BMP
+    bmp_image_full = (binary_image * PI_WHITE_VALUE).astype(np.uint8)  # Use configurable white value
     pil_image_full = Image.fromarray(bmp_image_full, mode='L')
-    pil_image_full.save('slm_result_1024x1280.bmp', 'BMP')
-    print(f"Full size BMP saved as: slm_result_1024x1280.bmp")
+    bmp_filename_final = os.path.join(plots_folder, f'slm_result_{pixel_matrix.shape[0]}x{pixel_matrix.shape[1]}_r{numbers_to_compare}_c{input_resolution_bits}_w{PI_WHITE_VALUE}.bmp')
+    pil_image_full.save(bmp_filename_final, 'BMP')
+    print(f"Full size BMP saved as: {bmp_filename_final}")
     print(f"Image size: {pil_image_full.size[0]} x {pil_image_full.size[1]} pixels")
-    print(f"Color mapping: Black=0, White=108")
+    print(f"Color mapping: Black=0, White={PI_WHITE_VALUE}")
     
     # Create a clean image without axes, descriptions, or indices for PNG reference
     plt.figure(figsize=(12.8, 10.24), dpi=100)  # 1280x1024 pixels at 100 DPI
@@ -265,7 +297,7 @@ def process_slm_algorithm():
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)  # Remove margins
     
     # Save the clean PNG reference image
-    clean_output_filename = 'slm_clean.png'
+    clean_output_filename = os.path.join(plots_folder, f'slm_clean_{pixel_matrix.shape[0]}x{pixel_matrix.shape[1]}_r{numbers_to_compare}_c{input_resolution_bits}.png')
     plt.savefig(clean_output_filename, dpi=100, bbox_inches='tight', 
                 pad_inches=0, facecolor='white', edgecolor='none')
     print(f"Clean reference PNG saved as: {clean_output_filename}")
