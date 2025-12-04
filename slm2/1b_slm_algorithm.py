@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SLM Algorithm Implementation - Alternating Row Grating Shift
-Author: Fabrizio Coccetti (PhD Level Implementation)
+Author: Fabrizio Coccetti
 Date: September, 2025 (Updated Dec 2025)
 
 DESCRIPTION:
