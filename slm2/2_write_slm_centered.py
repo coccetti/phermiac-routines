@@ -124,7 +124,7 @@ def write_shifted_image_to_slm(image_path):
 
 if __name__ == "__main__":
     # Define the path to the BMP image file
-    image_file_to_display = "./slm2/phermiac_pattern.bmp"
+    image_file_to_display = "./slm2/plots/slm_final_centered_g16.bmp"
     
     # Execute the main function
     write_shifted_image_to_slm(image_file_to_display)
