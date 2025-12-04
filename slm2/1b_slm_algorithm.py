@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-SLM Algorithm Implementation - ROI Grating Mode
+SLM Algorithm Implementation - Alternating Row Grating Shift
 Author: Fabrizio Coccetti (PhD Level Implementation)
 Date: September, 2025 (Updated Dec 2025)
 
 DESCRIPTION:
 This script generates a phase mask for a Hamamatsu LCOS-SLM with Region-of-Interest (ROI) control.
-1. Loads the Wavefront Correction file (CAL_...) as the Master Frame (e.g., 1272x1024).
+1. Loads the Wavefront Correction file (CAL_...) as the Master Frame.
 2. Generates the Signal Matrix (720x480) from CERN binary data.
-3. Generates a Blazed Phase Grating ONLY for the 720x480 ROI.
+3. Generates a SPECIAL Blazed Phase Grating for the ROI:
+   - Base Period: 16 pixels (Global shift).
+   - Alternating Shift: 
+     * Odd Macropixel Rows (1, 3, ...): Grating shifted by +4 pixels.
+     * Even Macropixel Rows (2, 4, ...): Grating shifted by -4 pixels.
 4. Combines [Correction + Signal + Grating] strictly within the central ROI.
-5. Leaves the outer regions as [Correction only] (no grating, no signal).
-
-This ensures diffraction separation happens only for the active signal area.
+5. Leaves the outer regions as [Correction only].
 """
 
 import numpy as np
@@ -32,9 +34,9 @@ INPUT_RESOLUTION_BITS = 16  # Number of macropixel columns
 
 # SLM Calibration & Hardware
 PI_WHITE_VALUE = 108        # Gray value corresponding to a pi phase shift
-GRATING_PERIOD = 16         # Period of the blazed grating in pixels
-DEFAULT_SLM_W = 1272        # Fallback width if calibration file missing
-DEFAULT_SLM_H = 1024        # Fallback height if calibration file missing
+GRATING_PERIOD = 16         # Base period of the blazed grating in pixels
+DEFAULT_SLM_W = 1272        # Fallback width
+DEFAULT_SLM_H = 1024        # Fallback height
 
 # Input Files
 TELESCOPE_01_FILE = "CERN-01_event1_nbit16.csv"
@@ -56,26 +58,18 @@ def load_wavefront_correction_native(filename):
         with Image.open(filename) as img:
             width, height = img.size
             print(f"Native Correction Resolution: {width}x{height}")
-            
-            # Convert to numpy array (Grayscale)
             bmp_data = np.array(img.convert('L'), dtype=float)
-            
             # Normalize 0-255 to 0-2pi 
-            # (Standard Hamamatsu LUT: 0->0, 255->2pi approx)
             correction_phase = (bmp_data / 255.0) * (2 * np.pi)
-            
             return correction_phase, width, height
-            
     except Exception as e:
         print(f"ERROR loading correction file: {e}")
         return np.zeros((DEFAULT_SLM_H, DEFAULT_SLM_W), dtype=float), DEFAULT_SLM_W, DEFAULT_SLM_H
 
 def create_signal_matrix(rows, cols):
-    """Create the signal pixel matrix structure (initialized to 0)."""
     return np.zeros((rows, cols), dtype=float)
 
 def assign_macropixel_value(matrix, row_idx, col_idx, value, macro_h, macro_w):
-    """Assign a value to a specific macropixel region."""
     r_start = row_idx * macro_h
     r_end = r_start + macro_h
     c_start = col_idx * macro_w
@@ -83,7 +77,6 @@ def assign_macropixel_value(matrix, row_idx, col_idx, value, macro_h, macro_w):
     matrix[r_start:r_end, c_start:c_end] = value
 
 def read_binary_data(filename):
-    """Read binary string from CSV."""
     try:
         with open(filename, 'r') as file:
             reader = csv.reader(file)
@@ -92,29 +85,56 @@ def read_binary_data(filename):
         print(f"Error: File {filename} not found")
         return None
 
-def generate_blazed_grating(rows, cols, period_pixels=16):
+def generate_alternating_grating(rows, cols, period, num_macro_rows):
     """
-    Generates a linear phase ramp (sawtooth) for a specific ROI size.
+    Generates a blazed grating with alternating shifts for each macropixel row.
+    - Rows 0, 2, 4... (1st, 3rd...): Shift +4px
+    - Rows 1, 3, 5... (2nd, 4th...): Shift -4px
     """
-    _, x_indices = np.indices((rows, cols))
-    # Phase = 2pi * (x / Period)
-    return (2 * np.pi * x_indices / period_pixels)
+    grating_matrix = np.zeros((rows, cols), dtype=float)
+    x_indices = np.arange(cols)
+    
+    # Calculate height of each macropixel row
+    mp_height = rows // num_macro_rows
+    
+    print(f"Generating Alternating Grating:")
+    print(f" - Period: {period}px")
+    print(f" - Macropixel Row Height: {mp_height}px")
+    print(f" - Odd Rows (1,3..): Shift +4px")
+    print(f" - Even Rows (2,4..): Shift -4px")
+
+    for i in range(num_macro_rows):
+        r_start = i * mp_height
+        r_end = r_start + mp_height
+        
+        # Apply shifts based on row index (0-based)
+        # User request: "prima riga" (idx 0) -> +4, "seconda riga" (idx 1) -> -4
+        if i % 2 == 0:
+            shift = 4.0
+        else:
+            shift = -4.0
+            
+        # Formula: Phase = 2pi * (x + shift) / Period
+        # This shifts the grating phase spatially
+        row_phase = (2 * np.pi * (x_indices + shift) / period)
+        
+        # Assign to the slice
+        grating_matrix[r_start:r_end, :] = row_phase
+        
+    return grating_matrix
 
 def process_slm_algorithm():
-    print("\n--- SLM Algorithm: Inner-ROI Grating Mode ---")
+    print("\n--- SLM Algorithm: Alternating ROI Grating Mode ---")
     
     # --- Step 1: Load Wavefront Correction (Base Image) ---
-    # This defines the full frame size (e.g., 1272x1024)
     full_frame_phase, slm_width, slm_height = load_wavefront_correction_native(CORRECTION_FILE)
     
     # --- Step 2: Generate the Signal Matrix (ROI Only) ---
     print(f"\nGenerating Signal Matrix ({SIGNAL_ROWS}x{SIGNAL_COLS})...")
     signal_matrix = create_signal_matrix(SIGNAL_ROWS, SIGNAL_COLS)
     
-    # Calculate macropixel sizes
     mp_rows = SIGNAL_ROWS // NUMBERS_TO_COMPARE
     mp_cols = SIGNAL_COLS // INPUT_RESOLUTION_BITS
-    print(f"Macropixel size: {mp_rows}x{mp_cols} pixels")
     
     # Process CERN-01
     cern01_data = read_binary_data(TELESCOPE_01_FILE)
@@ -134,44 +154,36 @@ def process_slm_algorithm():
             for c_idx, bit in enumerate(bits):
                 add_val = np.pi if bit == '1' else 0
                 current = signal_matrix[r_idx*mp_rows, c_idx*mp_cols]
-                # Phase addition logic
                 signal_matrix[r_idx*mp_rows : (r_idx+1)*mp_rows, 
                               c_idx*mp_cols : (c_idx+1)*mp_cols] = (current + add_val) % (2*np.pi)
     except FileNotFoundError:
-        print("CERN-02 file not found, skipping.")
+        pass
 
-    # --- Step 3: Generate Grating (ROI Only) ---
-    print(f"Generating Phase Grating for Inner Image ({SIGNAL_ROWS}x{SIGNAL_COLS}, Period={GRATING_PERIOD}px)...")
-    # We generate the grating ONLY for the size of the signal
-    roi_grating = generate_blazed_grating(SIGNAL_ROWS, SIGNAL_COLS, GRATING_PERIOD)
+    # --- Step 3: Generate Alternating Grating (ROI Only) ---
+    roi_grating = generate_alternating_grating(SIGNAL_ROWS, SIGNAL_COLS, 
+                                             GRATING_PERIOD, NUMBERS_TO_COMPARE)
 
     # --- Step 4: Embed ROI into Full Frame ---
-    print("\nEmbedding ROI (Signal + Grating) into Full Frame Center...")
+    print("\nEmbedding ROI into Full Frame Center...")
     
-    # Calculate centering offsets
     if SIGNAL_ROWS > slm_height or SIGNAL_COLS > slm_width:
-        raise ValueError(f"Signal size ({SIGNAL_ROWS}x{SIGNAL_COLS}) larger than SLM ({slm_height}x{slm_width})")
+        raise ValueError("Signal size larger than SLM size")
 
     r_off = (slm_height - SIGNAL_ROWS) // 2
     c_off = (slm_width - SIGNAL_COLS) // 2
-    print(f"ROI Offset: Top={r_off}, Left={c_off}")
-
-    # Extract the corresponding central part of the correction
-    # We must add to the EXISTING correction in that region
+    
+    # Extract correction ROI
     correction_roi = full_frame_phase[r_off : r_off + SIGNAL_ROWS, 
                                       c_off : c_off + SIGNAL_COLS]
     
-    # Combine components for the ROI:
-    # ROI = (Correction_Slice + Signal + Grating) % 2pi
+    # Combine: ROI = (Correction + Signal + Grating) % 2pi
     combined_roi_phase = (correction_roi + signal_matrix + roi_grating) % (2 * np.pi)
     
-    # Update the full frame
-    # Outside the ROI, full_frame_phase remains just the Correction (as loaded in Step 1)
+    # Update Full Frame
     full_frame_phase[r_off : r_off + SIGNAL_ROWS, 
                      c_off : c_off + SIGNAL_COLS] = combined_roi_phase
 
     # --- Step 5: Convert to 8-bit Bitmap ---
-    # Map [0, 2pi] -> [0, 2*PI_WHITE_VALUE]
     TWO_PI_GRAY = 2 * PI_WHITE_VALUE
     if TWO_PI_GRAY > 255:
         print(f"Warning: 2pi gray level ({TWO_PI_GRAY}) clipped to 255.")
@@ -179,32 +191,29 @@ def process_slm_algorithm():
         
     print(f"Mapping Phase 0-2pi to Gray 0-{TWO_PI_GRAY}")
     
-    # We apply modulo 2pi again to the whole frame just to be safe (though logic ensures it)
     final_phase = full_frame_phase % (2 * np.pi)
-    
-    bmp_float = (final_phase / (2 * np.pi)) * TWO_PI_GRAY
-    bmp_uint8 = bmp_float.astype(np.uint8)
+    bmp_uint8 = ((final_phase / (2 * np.pi)) * TWO_PI_GRAY).astype(np.uint8)
     
     # --- Step 6: Save Outputs ---
     plots_folder = "plots"
     if not os.path.exists(plots_folder):
         os.makedirs(plots_folder)
         
-    output_filename = os.path.join(plots_folder, f'slm_final_roi_g{GRATING_PERIOD}.bmp')
+    output_filename = os.path.join(plots_folder, f'slm_final_shifted_rows.bmp')
     Image.fromarray(bmp_uint8, mode='L').save(output_filename)
     
-    print("\n" + "="*50)
     print(f"SUCCESS. Output saved to: {output_filename}")
-    print(f"Total Resolution: {slm_width} x {slm_height}")
-    print(f"Inner ROI: {SIGNAL_ROWS} x {SIGNAL_COLS} (contains Signal + Grating)")
-    print(f"Outer Area: Contains only Wavefront Correction")
-    print("="*50)
 
-    # Optional: Save debug images to verify ROI placement
-    # Debug 1: Mask showing where the grating is applied
-    debug_mask = np.zeros((slm_height, slm_width), dtype=np.uint8)
-    debug_mask[r_off:r_off+SIGNAL_ROWS, c_off:c_off+SIGNAL_COLS] = 255
-    Image.fromarray(debug_mask, mode='L').save(os.path.join(plots_folder, 'debug_roi_mask.png'))
+    # Debug: Save visual check of the grating transitions
+    # Show a vertical slice to see the phase jumps between rows
+    plt.figure(figsize=(10, 6))
+    plt.plot(final_phase[r_off:r_off+2*mp_rows, c_off+10], label='Phase Profile (Column 10)')
+    plt.title('Vertical Phase Profile (Crossing Macropixel Rows)')
+    plt.xlabel('Pixel Row')
+    plt.ylabel('Phase (rad)')
+    plt.grid(True)
+    plt.savefig(os.path.join(plots_folder, 'debug_phase_profile.png'))
+    plt.close()
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
