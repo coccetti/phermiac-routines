@@ -31,7 +31,7 @@ def showOn2ndDisplay(monitorNo, windowNo, img_width, xShift, img_height, yShift,
     """
     try:
         # Load the DLL library for SLM control
-        Lcoslib = windll.LoadLibrary("Image_Control.dll")
+        Lcoslib = windll.LoadLibrary("slm2/Image_Control.dll")
 
         # Configure the SLM display window settings, including the offset
         Window_Settings = Lcoslib.Window_Settings
@@ -124,7 +124,7 @@ def write_shifted_image_to_slm(image_path):
 
 if __name__ == "__main__":
     # Define the path to the BMP image file
-    image_file_to_display = "phermiac_pattern.bmp"
+    image_file_to_display = "./slm2/phermiac_pattern.bmp"
     
     # Execute the main function
     write_shifted_image_to_slm(image_file_to_display)
