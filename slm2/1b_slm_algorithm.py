@@ -41,6 +41,8 @@ DEFAULT_SLM_H = 1024        # Fallback height
 # Input Files
 TELESCOPE_01_FILE = "CERN-01_event1_nbit16.csv"
 TELESCOPE_02_FILE = "CERN-02_sec1_nbit16.csv"
+TELESCOPE_01_FILE = "CERN-01_test.csv"
+TELESCOPE_02_FILE = "CERN-02_test.csv"
 CORRECTION_FILE = "CAL_LSH0905569_1064nm.bmp"
 
 def load_wavefront_correction_native(filename):
