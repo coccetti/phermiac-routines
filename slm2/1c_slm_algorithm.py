@@ -42,13 +42,13 @@ DEFAULT_SLM_H = 1024        # Fallback height
 WAVELENGTH = 1064e-9        # Wavelength in meters (1064 nm)
 DX = 12.5e-6                # Pixel pitch in meters (12.5 micrometers)
 # Two alternating frequencies in cycles per mm (for 2 alternating rows, not 3)
-GRATING_FREQUENCIES = [-0.45, -0.453]  # Alternating frequencies
+GRATING_FREQUENCIES = [-0.2, -0.23]  # Alternating frequencies
 
 # Input Files
-#TELESCOPE_01_FILE = "CERN-01_event1_nbit16.csv"
-#TELESCOPE_02_FILE = "CERN-02_sec1_nbit16.csv"
-TELESCOPE_01_FILE = "CERN-01_test0.csv"
-TELESCOPE_02_FILE = "CERN-02_test0.csv"
+TELESCOPE_01_FILE = "CERN-01_event1_nbit16.csv"
+TELESCOPE_02_FILE = "CERN-02_sec1_nbit16.csv"
+#TELESCOPE_01_FILE = "CERN-01_test1.csv"
+#TELESCOPE_02_FILE = "CERN-02_test1.csv"
 CORRECTION_FILE = "CAL_LSH0905569_1064nm.bmp"
 
 def load_wavefront_correction_native(filename):

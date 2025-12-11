@@ -34,15 +34,15 @@ INPUT_RESOLUTION_BITS = 16  # Number of macropixel columns
 
 # SLM Calibration & Hardware
 PI_WHITE_VALUE = 108        # Gray value corresponding to a pi phase shift
-GRATING_PERIOD = 16         # Base period of the blazed grating in pixels
+GRATING_PERIOD = 1         # Base period of the blazed grating in pixels
 DEFAULT_SLM_W = 1272        # Fallback width
 DEFAULT_SLM_H = 1024        # Fallback height
 
 # Input Files
-TELESCOPE_01_FILE = "CERN-01_event1_nbit16.csv"
-TELESCOPE_02_FILE = "CERN-02_sec1_nbit16.csv"
-#TELESCOPE_01_FILE = "CERN-01_test.csv"
-#TELESCOPE_02_FILE = "CERN-02_test.csv"
+#TELESCOPE_01_FILE = "CERN-01_event1_nbit16.csv"
+#TELESCOPE_02_FILE = "CERN-02_sec1_nbit16.csv"
+TELESCOPE_01_FILE = "CERN-01_test0.csv"
+TELESCOPE_02_FILE = "CERN-02_test0.csv"
 CORRECTION_FILE = "CAL_LSH0905569_1064nm.bmp"
 
 def load_wavefront_correction_native(filename):
@@ -112,9 +112,9 @@ def generate_alternating_grating(rows, cols, period, num_macro_rows):
         # Apply shifts based on row index (0-based)
         # User request: "prima riga" (idx 0) -> +4, "seconda riga" (idx 1) -> -4
         if i % 2 == 0:
-            shift = 4.0
+            shift = 8.0
         else:
-            shift = -4.0
+            shift = -0.0
             
         # Formula: Phase = 2pi * (x + shift) / Period
         # This shifts the grating phase spatially
