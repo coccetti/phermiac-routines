@@ -41,7 +41,7 @@ DX = 12.5e-6                # Pixel pitch in meters (12.5 micrometers)
 # Horizontal Grating Parameters (for shifting the Signal Matrix)
 # The grating period determines the deflection angle
 # Smaller period = larger deflection angle
-HORIZONTAL_GRATING_PERIOD = 16.0  # Grating period in pixels (user can adjust this)
+HORIZONTAL_GRATING_PERIOD = 4.0  # Grating period in pixels (user can adjust this)
 # Alternative: Use frequency-based approach
 # HORIZONTAL_GRATING_FREQUENCY = -0.2  # cycles/mm (negative for left deflection)
 
@@ -49,13 +49,13 @@ HORIZONTAL_GRATING_PERIOD = 16.0  # Grating period in pixels (user can adjust th
 # These are spatial shifts in pixels applied to the grating pattern
 ALTERNATING_SHIFT_ODD = 4.0      # Spatial shift in pixels for odd rows (1, 3, 5, ...)
 ALTERNATING_SHIFT_EVEN = -4.0    # Spatial shift in pixels for even rows (2, 4, 6, ...)
-ALTERNATING_GRATING_PERIOD = 16.0  # Base grating period in pixels
+ALTERNATING_GRATING_PERIOD = 32.0  # Base grating period in pixels
 
 # Input Files
 # TELESCOPE_01_FILE = "CERN-01_event1_nbit16.csv"
 # TELESCOPE_02_FILE = "CERN-02_sec1_nbit16.csv"
 TELESCOPE_01_FILE = "CERN-01_test0.csv"
-TELESCOPE_02_FILE = "CERN-02_test1.csv"
+TELESCOPE_02_FILE = "CERN-02_test0.csv"
 CORRECTION_FILE = "CAL_LSH0905569_1064nm.bmp"
 
 def load_wavefront_correction_native(filename):

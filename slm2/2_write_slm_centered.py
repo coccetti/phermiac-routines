@@ -124,7 +124,8 @@ def write_shifted_image_to_slm(image_path):
 
 if __name__ == "__main__":
     # Define the path to the BMP image file
-    image_file_to_display = "./slm2/plots/slm_final_shifted_rows.bmp"
+    image_file_to_display = "./slm2/plots/slm_full_with_alternating_grating.bmp"
+    #image_file_to_display = "./slm2/plots/slm_full_with_horizontal_grating.bmp"
     
     # Execute the main function
     write_shifted_image_to_slm(image_file_to_display)
