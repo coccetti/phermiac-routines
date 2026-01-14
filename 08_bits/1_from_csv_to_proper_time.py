@@ -10,7 +10,7 @@ import pandas as pd
 
 ### Read the data from the csv file and print the seconds properly
 # read only the Seconds and Nanoseconds columns from the csv file in the data folder
-data = pd.read_csv('data/CERN-02from2018-09-01to2018-09-02.csv', usecols=['Seconds', 'Nanoseconds'])
+data = pd.read_csv('08_bits/data/CERN-02from2018-09-01to2018-09-02.csv', usecols=['Seconds', 'Nanoseconds'])
 
 # Subtract 368143200 from all Seconds values
 data['Seconds'] = data['Seconds'] - 368143200
@@ -26,6 +26,6 @@ print(data['Time'])
 
 # Save only the Time column to a CSV file with a variation of the input filename
 time_data = pd.DataFrame({'Time': data['Time']})
-time_data.to_csv('data/CERN-02_processed.csv', index=False)
-print("Results saved to data/CERN-02_processed.csv")
+time_data.to_csv('08_bits/data/CERN-02_processed.csv', index=False)
+print("Results saved to 08_bits/data/CERN-02_processed.csv")
 
