@@ -1,11 +1,11 @@
 # Data
-data/
+**/data/
 
 # Results
-results/
+**results/
 
 # Plots
-plots/
+**/plots/
 
 # Manuals
 manuals/
