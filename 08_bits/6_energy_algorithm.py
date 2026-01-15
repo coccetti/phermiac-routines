@@ -58,10 +58,10 @@ for event_02_array in event_02_arrays:
     total_energy = 0
     for i, energy in enumerate(summed_energy):
         # weight = 1.3 ** (16-i)  # Exponential weight factor
-        weight = 2 ** (16-i)
+        # weight = 2 ** (16-i)
         # weight = (16-i)**2
         # weight = 16-i # This works better
-        # weight = 1
+        weight = 1
         weighted_energy = energy * weight
         total_energy += weighted_energy
         print(f"--------------------------------")

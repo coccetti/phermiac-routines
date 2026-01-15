@@ -1,0 +1,7 @@
+I need a new python file that:
+- read ./data/CERN-01_event1221_nbit8.csv
+- read ./data/CERN-02_sec1221_nbit8.csv
+- convert each line of the files into single digits
+- add correspondin digits of the first line of the first csv file to each line of the second csv line in the follwing way:
+    - Each digit must be added to the corresponding one in binary without carrying it to the next digit.
+- at the end I need a csv file of one column. 
