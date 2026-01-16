@@ -1,0 +1,1 @@
+I need a python script to write an image for an Hamamatsu SLM that in a next script I will supply to an Hamamatsu SLM.

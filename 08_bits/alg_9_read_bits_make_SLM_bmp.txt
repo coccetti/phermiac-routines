@@ -1,0 +1,8 @@
+I need a python script that:
+- define a macropixel with the size of 60 pixels for 60 pixels
+- the final bmp image will be 480 pixels for 480 pixels, made by a matrix of 8 for 8 macropixels
+- read SLM_8bits_CERN-01_event1221_CERN-02_sec1221_nbit8.csv
+- for each line of the file read the digits and create 8 corresponding macropixels:  
+    - if the digit is 0 create a macropixel complitely black
+    - if the digit is 1 create a macropixel complitely white
+- save a bmp image with the caracteristics of 16_bits/slm2/plots/slm_chessboard_720x480_r24_c16_w108.bmp but with the proper size
