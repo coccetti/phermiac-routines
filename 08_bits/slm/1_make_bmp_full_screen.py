@@ -22,7 +22,7 @@ from PIL import Image
 
 # --- CONFIGURATION ---
 BASE_PATH = "08_bits/slm"
-LIB_PATH = os.path.join(BASE_PATH, "lib")
+LIB_PATH = os.path.join(BASE_PATH, "mylib")
 RES_PATH = os.path.join(BASE_PATH, "results")
 
 # SLM Physical Limits
