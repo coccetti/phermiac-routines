@@ -1,1 +1,17 @@
-I need a python script to write an image for an Hamamatsu SLM that in a next script I will supply to an Hamamatsu SLM.
+I need a python script to write an image for an Hamamatsu SLM model LSH0905569 that in a future script I will supply to an Hamamatsu SLM. For the moment I need only to write the image. The script should do the following things:
+
+- Load the Wavefront Correction file 08_bits/slm/lib/CAL_LSH0905569_1064nm.bmp as the reference calibration frame. This image is the calibration file. Learn how to use a hamamatsu calibration file from the web. This calibration file is the correct one for my hamamatsu SLM.
+
+- read the image 08_bits/slm/lib/SLM_test_checkerboard_nbit8_480x480_r8_c8_w108.bmp. This image is the signal image that I want to punt in the middle of the SLM.
+
+- I need a BMP image that iI will supply to the SLM. This new image should be saved in 08_bits/slm/results folder
+
+- If I supply a different signal image , with different number of pixels, the code should be able to put it always in the middle of the SLM
+
+- Use the calibration image in the correct way. Check if I should supply a dark frame (i.e. an image taken with no light (lens cap on) to measure sensor offset/noise). In this case use a dummy image perfectly black.
+
+- Explain how to do the calibration process in the comments of the code.
+
+
+
+I need also a full note explaining to me the physics concepts involved in the process in a detailed way.
