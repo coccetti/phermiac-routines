@@ -13,6 +13,9 @@ manuals/
 # Mac specific files
 **/.DS_Store
 
+# Algorithms
+alg_*.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
