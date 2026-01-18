@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-Hamamatsu LCOS-SLM Pattern Generator (Model LSH0905569) - LINEAR REGION CORRECTION
-Target Wavelength: 1064 nm
-Phase Depth Setting: 0 to 2pi mapped to 0-217 Gray Levels.
+Hamamatsu LCOS-SLM Pattern Generator (Model LSH0905569)
+Target Wavelength: 1064 nm | Linearity Limit (2pi): 217
 
-SCIENTIFIC LOGIC:
-1. System Linearity Limit: The user specifies 217 as the maximum linear phase response (2pi).
-2. Calibration Mismatch Correction: The factory CAL file uses the full 0-255 range. 
-   To combine them physically, we rescale the CAL file to the 0-217 range 
-   so that the 'Phase per Gray Level' matches the Signal.
-3. Modulo Arithmetic: The final phase addition is wrapped modulo 217 to ensure 
-   we stay within the liquid crystal's linear response region (0-2pi).
+UPDATED PATHS: Uses '08_bits/slm/mylib' for source files.
 
-Author: Gemini Fabrizio Coccetti
+LOGIC RECAP:
+1. Signal 'w108' implies Gray Level 108 = Pi phase.
+2. System Limit is 217 = 2Pi phase.
+3. Calibration (CAL) is standard 0-255. It must be rescaled to 0-217.
+4. Final Phase = (Signal + Rescaled_Cal) % 217.
+
+Author: Fabrizio Coccetti
 Date: 2026-01-18
 """
 
@@ -21,19 +20,19 @@ import numpy as np
 from PIL import Image
 
 # --- CONFIGURATION ---
+# Base directory relative to where the script is run
 BASE_PATH = "08_bits/slm"
-LIB_PATH = os.path.join(BASE_PATH, "mylib")
+# Updated to 'mylib' as per user repository structure
+LIB_PATH = os.path.join(BASE_PATH, "mylib") 
 RES_PATH = os.path.join(BASE_PATH, "results")
 
-# SLM Physical Limits
+# SLM Physical Resolution
 SLM_WIDTH = 1272
 SLM_HEIGHT = 1024
 
 # SYSTEM CRITICAL VALUES
-# The value that corresponds to a 2pi phase shift (or max linear range)
+# The value that corresponds to a 2pi phase shift on your device at 1064nm
 MAX_PHASE_VALUE = 217 
-# Note: In modulo arithmetic, the range is [0, MAX_PHASE_VALUE-1].
-# A value of 217 is physically equivalent to 0 (2pi == 0).
 
 # Files
 CAL_FILENAME = "CAL_LSH0905569_1064nm.bmp"
@@ -43,7 +42,9 @@ OUTPUT_FILENAME = "SLM_Pattern_Ready_217_Limit.bmp"
 def load_slm_bitmap(filepath):
     """Loads a BMP file as a numpy array."""
     if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Critical File Missing: {filepath}")
+        # Print absolute path to help debugging
+        abs_path = os.path.abspath(filepath)
+        raise FileNotFoundError(f"Critical File Missing: {filepath}\n(Checked absolute: {abs_path})")
     with Image.open(filepath) as img:
         return np.array(img.convert('L'), dtype=np.float32)
 
@@ -73,74 +74,67 @@ def center_signal_on_canvas(signal_arr, canvas_shape):
 
 def main():
     print(f"--- Hamamatsu SLM Generation (Limit: {MAX_PHASE_VALUE}) ---")
+    print(f"Working Directory: {os.getcwd()}")
+    
+    # Ensure output directory exists
     os.makedirs(RES_PATH, exist_ok=True)
     
     # 1. Load Calibration (Range 0-255)
     cal_path = os.path.join(LIB_PATH, CAL_FILENAME)
-    print(f"Loading Calibration: {CAL_FILENAME}")
+    print(f"Loading Calibration: {cal_path}")
     try:
         cal_data_raw = load_slm_bitmap(cal_path)
     except FileNotFoundError as e:
-        print(e)
+        print(f"ERROR: {e}")
         return
 
     # Check Dimensions
     real_h, real_w = cal_data_raw.shape
     if (real_h, real_w) != (SLM_HEIGHT, SLM_WIDTH):
-        print(f"WARNING: Calibration size {cal_data_raw.shape} != SLM size.")
-        # We adopt calibration size to be safe
+        print(f"WARNING: Calibration size {cal_data_raw.shape} != Expected SLM size ({SLM_HEIGHT}x{SLM_WIDTH}).")
         slm_h, slm_w = real_h, real_w
     else:
         slm_h, slm_w = SLM_HEIGHT, SLM_WIDTH
 
-    # 2. RESCALE CALIBRATION (The Fix)
-    # We compress the 0-255 calibration map into the 0-217 range.
-    # This ensures that "Maximum Backplane Curvature" maps to "Maximum Correctable Value".
+    # 2. RESCALE CALIBRATION
+    # Compressing the 0-255 calibration map into the 0-217 range.
     print(f"Rescaling Calibration from [0-255] to [0-{MAX_PHASE_VALUE}]...")
     cal_scale_factor = MAX_PHASE_VALUE / 255.0
     cal_data_rescaled = cal_data_raw * cal_scale_factor
 
-    # 3. Load Signal (Already Range 0-217)
+    # 3. Load Signal (Range 0-108 -> fits in 0-217)
     sig_path = os.path.join(LIB_PATH, SIG_FILENAME)
-    print(f"Loading Signal: {SIG_FILENAME}")
+    print(f"Loading Signal: {sig_path}")
     try:
         sig_data = load_slm_bitmap(sig_path)
-    except FileNotFoundError:
-        print("Signal not found, generating dummy.")
-        sig_data = np.zeros((480, 480))
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
+        return
 
     # 4. Center Signal
+    print("Centering Signal...")
     centered_signal = center_signal_on_canvas(sig_data, (slm_h, slm_w))
     
     # 5. Combine and Wrap (Modulo 217)
-    # Total Phase = (Signal + Calibration) % 2pi
-    # Here 2pi is represented by MAX_PHASE_VALUE (217)
     print("Applying correction and wrapping phase...")
-    
     total_phase = centered_signal + cal_data_rescaled
     
-    # Modulo operation with floating point, then cast to integer
+    # Modulo operation
     final_data = np.mod(total_phase, MAX_PHASE_VALUE)
     
-    # Convert to 8-bit Integer
+    # Convert to 8-bit Integer for BMP
     final_img_array = final_data.astype(np.uint8)
     
-    # Sanity Check
-    print(f"Output Statistics: Min={final_img_array.min()}, Max={final_img_array.max()}")
-    if final_img_array.max() > MAX_PHASE_VALUE:
-        print("WARNING: Values exceed specified limit!")
-
     # 6. Save Result
     out_path = os.path.join(RES_PATH, OUTPUT_FILENAME)
     Image.fromarray(final_img_array).save(out_path)
-    print(f"Saved Final Image: {out_path}")
+    print(f"SUCCESS: Corrected Image saved to: {out_path}")
     
-    # 7. Generate Dark Frame (Zero Signal + Rescaled Calibration)
-    # This is the 'Black' reference for your camera
+    # 7. Generate Dark Frame (Rescaled Calibration only)
     dark_data = np.mod(cal_data_rescaled, MAX_PHASE_VALUE).astype(np.uint8)
     dark_path = os.path.join(RES_PATH, "SLM_Dark_Frame_217.bmp")
     Image.fromarray(dark_data).save(dark_path)
-    print(f"Saved Dark Frame: {dark_path}")
+    print(f"SUCCESS: Dark Frame saved to: {dark_path}")
 
 if __name__ == "__main__":
     main()
