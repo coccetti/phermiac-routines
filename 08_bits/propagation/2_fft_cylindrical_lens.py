@@ -15,6 +15,7 @@ Date: 2026-01-23
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from PIL import Image
 from pathlib import Path
 
@@ -44,6 +45,21 @@ def _normalize_to_uint16(arr: np.ndarray) -> np.ndarray:
         return np.zeros(a.shape, dtype=np.uint16)
     a = a / mx
     return np.round(a * 65535.0).astype(np.uint16)
+
+def _cmap_to_uint8_rgb(arr: np.ndarray, cmap: str = "inferno") -> np.ndarray:
+    """Map array to an RGB uint8 image using a matplotlib colormap."""
+    a = np.asarray(arr, dtype=np.float64)
+    a = np.nan_to_num(a, nan=0.0, posinf=0.0, neginf=0.0)
+    a = a - a.min()
+    mx = a.max()
+    if mx <= 0:
+        a = np.zeros(a.shape, dtype=np.float64)
+    else:
+        a = a / mx  # 0..1
+
+    rgba = mpl.colormaps.get_cmap(cmap)(a)  # (..., 4) float in 0..1
+    rgb = np.round(rgba[..., :3] * 255.0).astype(np.uint8)
+    return rgb
 
 def main():
     # 1. Resolve input path (FILENAME may already include folders)
@@ -114,10 +130,19 @@ def main():
             Image.fromarray(_normalize_to_uint16(intensity), mode="I;16").save(str(out_linear))
             print(f"Saved: {out_linear}")
 
+            # Also save a colored (inferno) version for easier visual inspection
+            out_linear_cmap = out_dir / f"{stem}_CCD_intensity_linear_inferno.png"
+            Image.fromarray(_cmap_to_uint8_rgb(intensity, cmap="inferno"), mode="RGB").save(str(out_linear_cmap))
+            print(f"Saved: {out_linear_cmap}")
+
             if SAVE_CCD_LOG:
                 out_log = out_dir / f"{stem}_CCD_intensity_log.png"
                 Image.fromarray(_normalize_to_uint16(intensity_log), mode="I;16").save(str(out_log))
                 print(f"Saved: {out_log}")
+
+                out_log_cmap = out_dir / f"{stem}_CCD_intensity_log_inferno.png"
+                Image.fromarray(_cmap_to_uint8_rgb(intensity_log, cmap="inferno"), mode="RGB").save(str(out_log_cmap))
+                print(f"Saved: {out_log_cmap}")
 
     # 5. Plotting (2 Subplots)
     fig = plt.figure(figsize=(12, 6))
