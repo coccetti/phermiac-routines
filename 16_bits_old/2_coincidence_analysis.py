@@ -1,12 +1,3 @@
-#
-# Coincidence analysis for CERN data
-#
-# This script reads the data from the csv file and finds the coincidences between the two files
-# It then plots the time series and the coincidences
-# It then plots the coincidence time differences
-#
-# The script is used to find the coincidence time differences between the two files
-
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -63,27 +54,13 @@ def plot_coincidences(times1, times2, coincidences, filename1, filename2):
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     
-    # Plot 2: Coincidence time differences (central 50 bins only)
+    # Plot 2: Coincidence time differences
     if coincidences:
         time_diffs = [c[2] for c in coincidences]
-        # Compute histogram with 200 bins to find the center
-        counts, bin_edges = np.histogram(time_diffs, bins=200)
-        # Find the center bin index
-        center_bin_idx = len(counts) // 2
-        # Extract central 50 bins (25 bins on each side of center)
-        start_bin = max(0, center_bin_idx - 25)
-        end_bin = min(len(counts), center_bin_idx + 25)
-
-        # bin_edges has length len(counts)+1, so for N bins we need N+1 edges
-        edges = bin_edges[start_bin : end_bin + 1]
-        x = edges[:-1]
-        w = np.diff(edges)
-
-        # Plot only the central bins
-        ax2.bar(x, counts[start_bin:end_bin], width=w, alpha=0.7, color='green', edgecolor='black', align='edge')
+        ax2.hist(time_diffs, bins=200, alpha=0.7, color='green', edgecolor='black')
         ax2.set_xlabel('Time Difference (seconds)')
         ax2.set_ylabel('Count')
-        ax2.set_title(f'Coincidence Time Differences - Central 50 Bins (Total: {len(coincidences)})')
+        ax2.set_title(f'Coincidence Time Differences (Total: {len(coincidences)})')
         ax2.grid(True, alpha=0.3)
     else:
         ax2.text(0.5, 0.5, 'No coincidences found', ha='center', va='center', transform=ax2.transAxes)
@@ -94,8 +71,8 @@ def plot_coincidences(times1, times2, coincidences, filename1, filename2):
 
 def main():
     # File paths
-    file1 = '08_bits/data/CERN-01from2018-09-01to2018-09-02.csv'
-    file2 = '08_bits/data/CERN-02from2018-09-01to2018-09-02.csv'
+    file1 = 'data/CERN-01from2018-09-01to2018-09-02.csv'
+    file2 = 'data/CERN-02from2018-09-01to2018-09-02.csv'
     
     print("Processing time data from both files...")
     
@@ -111,7 +88,7 @@ def main():
     #
     # Use only one window for now
     # Important part of the program
-    coincidence_windows = [1e-4]
+    coincidence_windows = [1e-5]
     
     for window in coincidence_windows:
         print(f"\nSearching for coincidences with window: {window:.0e} seconds")
@@ -123,13 +100,13 @@ def main():
             fig = plot_coincidences(times1, times2, coincidences, 'CERN-01', 'CERN-02')
             
             # Save plot
-            plot_filename = f'08_bits/results/coincidences_{window:.0e}s.png'
+            plot_filename = f'results/coincidences_{window:.0e}s.png'
             fig.savefig(plot_filename, dpi=300, bbox_inches='tight')
             print(f"Plot saved to {plot_filename}")
             
             # Save coincidence data
             coinc_df = pd.DataFrame(coincidences, columns=['Time1', 'Time2', 'TimeDiff'])
-            csv_filename = f'08_bits/results/coincidences_{window:.0e}s.csv'
+            csv_filename = f'results/coincidences_{window:.0e}s.csv'
             coinc_df.to_csv(csv_filename, index=False)
             print(f"Coincidence data saved to {csv_filename}")
             
@@ -142,7 +119,7 @@ def main():
         
         # Still create a plot showing the time series
         fig = plot_coincidences(times1, times2, [], 'CERN-01', 'CERN-02')
-        plot_filename = '08_bits/results/time_series_no_coincidences.png'
+        plot_filename = 'results/time_series_no_coincidences.png'
         fig.savefig(plot_filename, dpi=300, bbox_inches='tight')
         print(f"Time series plot saved to {plot_filename}")
         plt.close(fig)

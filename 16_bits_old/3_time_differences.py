@@ -12,7 +12,7 @@ def extract_decimal_part(time_value):
 
 def main():
     # Read the CSV files
-    data_dir = Path("08_bits/data")
+    data_dir = Path("data")
     file1_path = data_dir / "CERN-01_1event.csv"
     file2_path = data_dir / "CERN-02_1sec.csv"
     
@@ -48,7 +48,7 @@ def main():
     print(f"Time differences: min={time_differences.min():.6f}, max={time_differences.max():.6f}")
     
     # save the time differences to a csv file
-    output_dir = Path("08_bits/results")
+    output_dir = Path("results")
     output_dir.mkdir(exist_ok=True)
     np.savetxt(output_dir / "time_differences.csv", time_differences, delimiter=',')
     print(f"Time differences saved to {output_dir / 'time_differences.csv'}")
@@ -72,7 +72,7 @@ def main():
              bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
     
     # Save the plot
-    output_dir = Path("08_bits/results")
+    output_dir = Path("results")
     output_dir.mkdir(exist_ok=True)
     plt.savefig(output_dir / "time_differences_histogram.png", dpi=300, bbox_inches='tight')
     print(f"Histogram saved to {output_dir / 'time_differences_histogram.png'}")

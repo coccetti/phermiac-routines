@@ -2,17 +2,17 @@ import numpy as np
 import cmath
 import csv
 
-# Read the line in the file data/CERN-01 event and print it
-with open('08_bits/data/CERN-01_event1221_nbit8.csv', 'r') as file:
+# Read the line in the file data/CERN-01_1event_nbit16.csv and print it
+with open('data/CERN-01_event1_nbit16.csv', 'r') as file:
     event_01_string = file.readline().strip()
     # Convert the string of digits to a numpy array of integers
     event_01 = np.array([int(digit) for digit in event_01_string])
     print(event_01)
 
-# Read all the lines in the file data/CERN-02 second
+# Read all the lines in the file data/CERN-02_1sec_nbit16.csv
 event_02_arrays = []
 line_strings = []
-with open('08_bits/data/CERN-02_sec1221_nbit8.csv', 'r') as file:
+with open('data/CERN-02_sec1_nbit16.csv', 'r') as file:
     for line in file:
         line_string = line.strip()
         line_strings.append(line_string)
@@ -58,10 +58,10 @@ for event_02_array in event_02_arrays:
     total_energy = 0
     for i, energy in enumerate(summed_energy):
         # weight = 1.3 ** (16-i)  # Exponential weight factor
-        # weight = 2 ** (16-i)
+        weight = 2 ** (16-i)
         # weight = (16-i)**2
         # weight = 16-i # This works better
-        weight = 1
+        # weight = 1
         weighted_energy = energy * weight
         total_energy += weighted_energy
         print(f"--------------------------------")
@@ -79,7 +79,7 @@ for event_02_array in event_02_arrays:
     total_energies.append(total_energy)
 
 # Save results to CSV file
-with open('08_bits/results/energy_analysis_results.csv', 'w', newline='') as csvfile:
+with open('results/energy_analysis_results.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     
     # Write header
@@ -89,6 +89,6 @@ with open('08_bits/results/energy_analysis_results.csv', 'w', newline='') as csv
     for line_string, total_energy in zip(line_strings, total_energies):
         writer.writerow([line_string, total_energy])
 
-print(f"Results saved to 08_bits/results/energy_analysis_results.csv")
+print(f"Results saved to results/energy_analysis_results.csv")
 
 
