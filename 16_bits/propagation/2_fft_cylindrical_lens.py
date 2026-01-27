@@ -22,7 +22,7 @@ from pathlib import Path
 # --- CONFIGURATION ---
 # Filename of the BMP to load
 # FILENAME = "SLM_CERN_event1221_480x480_r8_c8_w108.bmp"
-FILENAME = "08_bits/propagation/img/SLM_CERN_event1221_480x480_r8_c8_w108_grating.bmp"
+FILENAME = "16_bits/propagation/img/SLM_16bits_CERN_event1221_960x480_r8_c16_w108_grating.bmp"
 
 # Output (saved next to the input image by default)
 SAVE_CCD_IMAGES = True            # save simulated CCD intensity images

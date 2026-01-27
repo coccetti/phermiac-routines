@@ -24,9 +24,9 @@ from PIL import Image
 # --- CONFIGURATION ---
 
 # 1. File Paths
-BASE_DIR = "08_bits/propagation"  # Adjust to your working folder
+BASE_DIR = "16_bits/propagation"  # Adjust to your working folder
 IMG_SUBDIR = "img"
-INPUT_FILENAME = "SLM_CERN_event1221_480x480_r8_c8_w108.bmp"
+INPUT_FILENAME = "SLM_16bits_CERN_event1221_960x480_r8_c16_w108.bmp"
 INPUT_PATH = os.path.join(BASE_DIR, IMG_SUBDIR, INPUT_FILENAME)
 # Add suffix "_GratingSeparated" before file extension
 name, ext = os.path.splitext(INPUT_FILENAME)

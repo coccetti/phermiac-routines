@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Read the CSV file
-df = pd.read_csv('08_bits/results/energy_analysis_results.csv')
+df = pd.read_csv('16_bits/results/energy_analysis_results.csv')
 
 # Create a figure with subplots
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
@@ -35,7 +35,7 @@ ax2.text(0.95, 0.95, stats_text, transform=ax2.transAxes,
          bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
 plt.tight_layout()
-plt.savefig('08_bits/results/energy_analysis_plot.png', dpi=300, bbox_inches='tight')
+plt.savefig('16_bits/results/energy_analysis_plot.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 # Print summary statistics

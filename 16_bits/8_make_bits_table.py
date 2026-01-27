@@ -3,8 +3,8 @@
 Algorithm 8: make bits table
 
 Reads:
- - ./08_bits/data/CERN-01_event1221_nbit8.csv  (uses ONLY the first non-empty line as mask)
- - ./08_bits/data/CERN-02_sec1221_nbit8.csv    (processes every non-empty line)
+ - CERN-01_event1221_nbit8.csv  (uses ONLY the first non-empty line as mask)
+ - CERN-02_sec1221_nbit8.csv    (processes every non-empty line)
 
 For each line of the second file, performs a "binary add without carry" with the
 mask, digit-by-digit (equivalent to XOR for 0/1 digits), and writes the result
@@ -23,11 +23,11 @@ from typing import List
 # Input file paths
 # =========================
 # These are the default paths used when you run the script without CLI arguments.
-# They are resolved relative to THIS script's folder (`08_bits/`).
+# They are resolved relative to THIS script's folder (`xx_bits/`).
 BASE_DIR = Path(__file__).resolve().parent
-EVENT_CSV = BASE_DIR / "data" / "CERN-01_event1221_nbit8.csv"
-SECONDS_CSV = BASE_DIR / "data" / "CERN-02_sec1221_nbit8.csv"
-OUT_CSV = BASE_DIR / "data" / "SLM_bits_CERN-01_event1221_CERN-02_sec1221_nbit8.csv"
+EVENT_CSV = BASE_DIR / "data" / "CERN-01_event1221_nbit16.csv"
+SECONDS_CSV = BASE_DIR / "data" / "CERN-02_sec1221_nbit16.csv"
+OUT_CSV = BASE_DIR / "data" / "SLM_bits_CERN-01_event1221_CERN-02_sec1221_nbit16.csv"
 
 
 def _read_bit_lines(path: Path) -> List[str]:

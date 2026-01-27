@@ -3,7 +3,7 @@ import cmath
 import csv
 
 # Read the line in the file data/CERN-01 event and print it
-with open('08_bits/data/CERN-01_event1221_nbit8.csv', 'r') as file:
+with open('16_bits/data/CERN-01_event1221_nbit16.csv', 'r') as file:
     event_01_string = file.readline().strip()
     # Convert the string of digits to a numpy array of integers
     event_01 = np.array([int(digit) for digit in event_01_string])
@@ -12,7 +12,7 @@ with open('08_bits/data/CERN-01_event1221_nbit8.csv', 'r') as file:
 # Read all the lines in the file data/CERN-02 second
 event_02_arrays = []
 line_strings = []
-with open('08_bits/data/CERN-02_sec1221_nbit8.csv', 'r') as file:
+with open('16_bits/data/CERN-02_sec1221_nbit16.csv', 'r') as file:
     for line in file:
         line_string = line.strip()
         line_strings.append(line_string)
@@ -79,7 +79,7 @@ for event_02_array in event_02_arrays:
     total_energies.append(total_energy)
 
 # Save results to CSV file
-with open('08_bits/results/energy_analysis_results.csv', 'w', newline='') as csvfile:
+with open('16_bits/results/energy_analysis_results.csv', 'w', newline='') as csvfile:
     writer = csv.writer(csvfile)
     
     # Write header
@@ -89,6 +89,4 @@ with open('08_bits/results/energy_analysis_results.csv', 'w', newline='') as csv
     for line_string, total_energy in zip(line_strings, total_energies):
         writer.writerow([line_string, total_energy])
 
-print(f"Results saved to 08_bits/results/energy_analysis_results.csv")
-
-
+print(f"Results saved to 16_bits/results/energy_analysis_results.csv")
