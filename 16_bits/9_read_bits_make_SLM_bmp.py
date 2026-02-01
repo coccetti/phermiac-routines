@@ -31,11 +31,13 @@ from PIL import Image
 BASE_DIR = Path(__file__).resolve().parent
 
 # Input: CSV with 8 digits per row (either "01010101" or "0,1,0,1,0,1,0,1")
-BITS_CSV = BASE_DIR / "data" / "SLM_16bits_CERN-01_event1221_CERN-02_sec1221_nbit16.dat"
+# BITS_CSV = BASE_DIR / "data" / "SLM_16bits_CERN-01_event1221_CERN-02_sec1221_nbit16.dat"
+# BITS_CSV = BASE_DIR / "data" / "SLM_16bits_CERN-01_event1221.dat"
+BITS_CSV = BASE_DIR / "data" / "SLM_16bits_CERN-02_sec1221.dat"
 
 # Output BMP
 OUTPUT_DIR = BASE_DIR / "results"
-OUTPUT_FILENAME = OUTPUT_DIR / "SLM_16bits_CERN_event1221.bmp"
+OUTPUT_FILENAME = OUTPUT_DIR / "SLM_16bits_CERN-02_sec1221.bmp"
 
 # Geometry
 MACROPIXEL_SIZE = 60  # px
