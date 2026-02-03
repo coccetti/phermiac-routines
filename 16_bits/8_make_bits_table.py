@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Algorithm 8: make bits table
+Algorithm 8: make bits table starting from event and seconds files
 
 Reads:
  - CERN-01_event1221_nbit8.csv  (uses ONLY the first non-empty line as mask)
@@ -25,10 +25,13 @@ from typing import List
 # These are the default paths used when you run the script without CLI arguments.
 # They are resolved relative to THIS script's folder (`xx_bits/`).
 BASE_DIR = Path(__file__).resolve().parent
-EVENT_CSV = BASE_DIR / "data" / "CERN-01_event1221_nbit16.csv"
-SECONDS_CSV = BASE_DIR / "data" / "CERN-02_sec1221_nbit16.csv"
-OUT_CSV = BASE_DIR / "data" / "SLM_bits_CERN-01_event1221_CERN-02_sec1221_nbit16.csv"
+# EVENT_CSV = BASE_DIR / "data" / "CERN-01_event1221_nbit16.csv"
+# SECONDS_CSV = BASE_DIR / "data" / "CERN-02_sec1221_nbit16.csv"
+# OUT_CSV = BASE_DIR / "data" / "SLM_bits_CERN-01_event1221_CERN-02_sec1221_nbit16.csv"
 
+EVENT_CSV = BASE_DIR / "data" / "CERN-01_event1221_nbit16.csv"
+SECONDS_CSV = BASE_DIR / "data" / "SLM_16x16bits_CERN-02_sec1221.dat"
+OUT_CSV = BASE_DIR / "data" / "SLM_16x16bits_CERN-01_event1221_CERN-02_sec1221_nbit16.dat"
 
 def _read_bit_lines(path: Path) -> List[str]:
     if not path.exists():
