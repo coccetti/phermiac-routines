@@ -46,6 +46,11 @@ SAVE_CCD_LOG = True               # save log1p(intensity) PNGs (recommended for 
 SAVE_PLOTS = True                 # save the requested matplotlib plots
 SHOW_FIGURE = False               # show interactive windows (default off to avoid hanging terminals)
 
+# Plot zoom for CCD (linear) subplots
+ZOOM_CCD_X = True
+CCD_X_MIN = 300
+CCD_X_MAX = 700
+
 # --- CCD "vertical lines" readout (macropixel-row peaks) ---
 MACROPIXEL_HEIGHT = 60
 SAVE_MACROROW_PEAKS_CSV = True
@@ -55,8 +60,8 @@ CENTER_EXCLUSION_HALF_WIDTH_PX = 35  # exclude columns [cx-hw, cx+hw]
 # Amplitude term
 # - "fixed": A(x,y) = 1 everywhere
 # - "gradient": A is constant in each macropixel column, decreasing left->right (16..1 for c16)
-# AMPLITUDE_MODE = "gradient"  # "fixed" | "gradient"
-AMPLITUDE_MODE = "fixed"  # "fixed" | "gradient"
+AMPLITUDE_MODE = "gradient"  # "fixed" | "gradient"
+# AMPLITUDE_MODE = "fixed"  # "fixed" | "gradient"
 DEFAULT_MACRO_COLS = 16  # used if we can't parse cXX from filename
 
 # Physical Parameters
@@ -255,10 +260,11 @@ def main() -> None:
     if AMPLITUDE_MODE.lower() == "gradient":
         macro_cols = _parse_macro_cols_from_filename(img_path) or DEFAULT_MACRO_COLS
         amp_map = _amplitude_gradient_map(h, w, macro_cols)
-        amp_note = f"Amplitude gradient \"{macro_cols} to 1\""
+        # amp_note = f"Gradient \"{macro_cols} to 1\""
+        amp_note = f"[gradient j algorithm]"
     else:
         amp_map = np.ones((h, w), dtype=np.float32)
-        amp_note = "uniform amplitude"
+        amp_note = "[no gradient algorithm]" # uniform amplitude
 
     # Create the Optical Field (Complex Number): amplitude * exp(i*phase)
     input_field = amp_map * np.exp(1j * phase_map)
@@ -371,7 +377,12 @@ def main() -> None:
 
     if SAVE_PLOTS or SHOW_FIGURE:
         # FINAL: original BW, grating input, CCD linear
-        fig1, ax = plt.subplots(1, 3, figsize=(18, 6))
+        fig1, ax = plt.subplots(
+            1,
+            3,
+            figsize=(22, 6),
+            gridspec_kw={"width_ratios": [1.0, 1.0, 2.2]},
+        )
         figs.append(fig1)
 
         im0 = ax[0].imshow(
@@ -381,7 +392,10 @@ def main() -> None:
             vmax=DISPLAY_PHASE_MAX,
             aspect="auto",
         )
-        ax[0].set_title(r"Original Phase" "\n" r"[Black: $\phi = 0$; White: $\phi = \pi$]")
+        ax[0].set_title(
+            r"$\mathbf{Original\ Phase(x,y)}$" "\n" 
+            r"$\it{[black:}\ \varphi = 0\ \it{;\ white:}\ \varphi = \pi\it{]}$"
+        )
         ax[0].set_xlabel("x (px)")
         ax[0].set_ylabel("y (px)")
         c0 = fig1.colorbar(im0, ax=ax[0], fraction=0.046, pad=0.04)
@@ -394,7 +408,10 @@ def main() -> None:
             vmax=DISPLAY_PHASE_MAX,
             aspect="auto",
         )
-        ax[1].set_title("SLM input (with grating)\n(as loaded)")
+        ax[1].set_title(
+            r"$\mathbf{Phase(x,y)\ with\ horizontal\ blazed\ grating}$" "\n"
+            r"$\it{[black:}\ \varphi = 0\ \it{;\ white:}\ \varphi = \pi\it{]}$"
+        )
         ax[1].set_xlabel("x (px)")
         ax[1].set_ylabel("y (px)")
         c1 = fig1.colorbar(im1, ax=ax[1], fraction=0.046, pad=0.04)
@@ -408,9 +425,11 @@ def main() -> None:
             interpolation="nearest",
             resample=False,
         )
+        if ZOOM_CCD_X:
+            ax[2].set_xlim(CCD_X_MIN, CCD_X_MAX)
         ax[2].set_title(
-            "CCD intensity (linear scale)\nCylindrical lens focus\n"
-            f"{amp_note}\nPeak intensity values written at right"
+            "$\mathbf{CCD\ intensity\ for\ cylindrical\ lens\ focus\ (linear\ scale)}$" "\n"
+            f"{amp_note}"
         )
         ax[2].set_xlabel("k_x (FFT-shifted index)")
         ax[2].set_ylabel("y (px)")
@@ -440,7 +459,7 @@ def main() -> None:
                 bbox=dict(boxstyle="round,pad=0.2", fc="black", ec="none", alpha=0.45),
             )
 
-            x_text = intensity.shape[1] - 5
+            x_text = (CCD_X_MAX - 5) if ZOOM_CCD_X else (intensity.shape[1] - 5)
             for p in peaks:
                 y_mid = 0.5 * (float(p["y_start"]) + float(p["y_end"]))
                 mantissa = float(p["peak_intensity"]) / scale if scale != 0 else 0.0
@@ -451,6 +470,7 @@ def main() -> None:
                     f"{mantissa:6.2f}",
                     color=peak_rgba,
                     fontsize=8,
+                    fontweight="bold",
                     ha="right",
                     va="center",
                     path_effects=[pe.withStroke(linewidth=2, foreground="black")],
@@ -474,7 +494,7 @@ def main() -> None:
             aspect="auto",
         )
         ax2[0].set_title(
-            r"Original Phase" "\n" r"[Black: $\phi = 0$; White: $\phi = \pi$]"
+            r"Original Phase" "\n" r"[black: $\varphi = 0$; white: $\varphi = \pi$]"
         )
         ax2[0].set_xlabel("x (px)")
         ax2[0].set_ylabel("y (px)")
@@ -521,7 +541,7 @@ def main() -> None:
             vmax=DISPLAY_PHASE_MAX,
             aspect="auto",
         )
-        ax3[0, 0].set_title(r"Original Phase" "\n" r"[Black: $\phi = 0$; White: $\phi = \pi$]")
+        ax3[0, 0].set_title(r"Original Phase" "\n" r"[black: $\it{\varphi} = 0$; white: $\it{\varphi} = \pi$]")
         ax3[0, 0].set_xlabel("x (px)")
         ax3[0, 0].set_ylabel("y (px)")
         _phase_colorbar(fig3.colorbar(im30, ax=ax3[0, 0], fraction=0.046, pad=0.04))
@@ -546,6 +566,8 @@ def main() -> None:
             interpolation="nearest",
             resample=False,
         )
+        if ZOOM_CCD_X:
+            ax3[1, 0].set_xlim(CCD_X_MIN, CCD_X_MAX)
         ax3[1, 0].set_title("CCD intensity (linear)")
         ax3[1, 0].set_xlabel("k_x (FFT-shifted index)")
         ax3[1, 0].set_ylabel("y (px)")
@@ -576,7 +598,7 @@ def main() -> None:
                 bbox=dict(boxstyle="round,pad=0.2", fc="black", ec="none", alpha=0.45),
             )
 
-            x_text = intensity.shape[1] - 5
+            x_text = (CCD_X_MAX - 5) if ZOOM_CCD_X else (intensity.shape[1] - 5)
             for p in peaks:
                 y_mid = 0.5 * (float(p["y_start"]) + float(p["y_end"]))
                 mantissa = float(p["peak_intensity"]) / scale if scale != 0 else 0.0
@@ -587,6 +609,7 @@ def main() -> None:
                     f"{mantissa:6.2f}",
                     color=peak_rgba,
                     fontsize=7,
+                    fontweight="bold",
                     ha="right",
                     va="center",
                     path_effects=[pe.withStroke(linewidth=2, foreground="black")],
