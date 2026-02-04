@@ -1,20 +1,15 @@
 # -*- coding: utf-8 -*-
 """
 Optical Simulation: SLM Phase Modulation & Cylindrical Lens Propagation
-Output: publication-style plots (original vs grating vs CCD intensity)
+Variant: add macropixel-column amplitude gradient (1,2,3,...)
 
-What’s new vs 2_fft_cylindrical_lens.py:
-- Produces a single 3-panel "final" PNG:
-  (1) original (no grating) in pure black/white (0/255),
-  (2) input with grating (as-is),
-  (3) CCD intensity on linear scale.
-- Produces an additional 2-panel PNG:
-  original (no grating) BW + CCD intensity with LOG scale (colored).
-- Adds an extra "overview" plot (2x2) useful for quick inspection.
-
-Physics:
-- The SLM modulates the PHASE of the light (0-2pi), not the amplitude.
-- A vertical cylindrical lens performs a 1D Fourier Transform along the horizontal axis.
+Compared to 3_fft_cylindrical_lens.py:
+- Same phase-only encoding from the input BMP (gray -> phase).
+- Adds an amplitude term that is CONSTANT within each macropixel:
+    leftmost macropixel column amplitude = 1,
+    next column amplitude = 2,
+    ...
+  repeated identically for each row.
 
 Author: Fabrizio Coccetti
 Date: 2026-02-03
@@ -23,25 +18,26 @@ Date: 2026-02-03
 from __future__ import annotations
 
 import os
+import re
+import csv
 from pathlib import Path
 
 # Make matplotlib cache writable (avoids slow temp cache + fontconfig warnings on some systems)
 _MPLCONFIGDIR = Path(__file__).resolve().parent / ".mplconfig"
 _MPLCONFIGDIR.mkdir(exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(_MPLCONFIGDIR))
-# Fontconfig may also need a writable cache dir on some systems
 os.environ.setdefault("XDG_CACHE_HOME", str(_MPLCONFIGDIR))
 
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
+import matplotlib.patheffects as pe
 from PIL import Image
-import csv
 
 
 # --- CONFIGURATION ---
-# Filename of the BMP to load (this is typically the *_grating.bmp output of 0_apply_grating_separation.py)
+# Filename of the BMP to load (typically the *_grating.bmp output of 0_apply_grating_separation.py)
 FILENAME = "16_bits/propagation/img/SLM_16x16bits_CERN-01_event3_CERN-02_sec3_960x960_r16_c16_w108_grating.bmp"
 
 # Output (saved next to the input image by default)
@@ -51,13 +47,17 @@ SAVE_PLOTS = True                 # save the requested matplotlib plots
 SHOW_FIGURE = False               # show interactive windows (default off to avoid hanging terminals)
 
 # --- CCD "vertical lines" readout (macropixel-row peaks) ---
-# Each macropixel row in the SLM corresponds to a horizontal band on the CCD (same y pixels).
 MACROPIXEL_HEIGHT = 60
 SAVE_MACROROW_PEAKS_CSV = True
-
-# If True, ignore the central (zero-order) region when searching peaks, so you pick the steered vertical line.
 EXCLUDE_CENTER_ZERO_ORDER = True
 CENTER_EXCLUSION_HALF_WIDTH_PX = 35  # exclude columns [cx-hw, cx+hw]
+
+# Amplitude term
+# - "fixed": A(x,y) = 1 everywhere
+# - "gradient": A is constant in each macropixel column, decreasing left->right (16..1 for c16)
+# AMPLITUDE_MODE = "gradient"  # "fixed" | "gradient"
+AMPLITUDE_MODE = "fixed"  # "fixed" | "gradient"
+DEFAULT_MACRO_COLS = 16  # used if we can't parse cXX from filename
 
 # Physical Parameters
 # 'w108' in filename implies Gray Level 108 corresponds to a Phase Shift of PI (3.14 rad)
@@ -67,27 +67,24 @@ PI_GRAY_LEVEL = 108.0
 LINEAR_CMAP = "inferno"
 LOG_CMAP = "viridis"
 
+# Linear CCD color normalization (consistent comparisons across events)
+LINEAR_VMAX_MODE = "theoretical_fraction"  # "theoretical_fraction" | "fixed" | "peaks_percentile"
+LINEAR_VMAX_FRACTION_OF_THEORETICAL_MAX = 0.50
+LINEAR_VMAX_FIXED = None
+LINEAR_VMAX_PEAKS_PERCENTILE = 99.0
+LINEAR_VMAX_PEAKS_MARGIN = 1.10
+# Ensure we don't clip the true peak in the *plots* (so the brightest pixel gets the top color)
+LINEAR_ENSURE_NO_CLIP_IN_PLOTS = True
+LINEAR_DATA_MAX_MARGIN = 1.00  # multiply data max by this (>=1). Use 1.02 for tiny headroom.
+
 # Display convention for legends/colorbars:
 # express grayscale patterns in phase units [0; π] with mapping 0 -> 0 and 255 -> π.
 DISPLAY_PHASE_MAX = np.pi
-DISPLAY_PHASE_SCALE = DISPLAY_PHASE_MAX / 255.0  # gray * scale -> phase
-
-# --- Linear CCD color normalization (for consistent comparisons across events) ---
-# Goal: the SAME linear intensity value should map to the SAME color across runs.
-# That means you should avoid per-image autoscaling (percentiles over the whole image),
-# because the huge central peak changes the mapping and makes vertical lines look different.
-#
-# Recommended default: scale to a fixed fraction of the theoretical maximum intensity.
-# For an unnormalized FFT of length N with unit amplitude, the maximum possible intensity is N^2.
-LINEAR_VMAX_MODE = "theoretical_fraction"  # "theoretical_fraction" | "fixed" | "peaks_percentile"
-LINEAR_VMAX_FRACTION_OF_N2 = 0.50          # used when mode="theoretical_fraction" (0.3..1.0 typical)
-LINEAR_VMAX_FIXED = None                  # used when mode="fixed" (set a number, e.g. 4e5)
-LINEAR_VMAX_PEAKS_PERCENTILE = 99.0       # used when mode="peaks_percentile" (auto per-image)
-LINEAR_VMAX_PEAKS_MARGIN = 1.10           # multiply peaks-percentile by this margin
+DISPLAY_PHASE_SCALE = DISPLAY_PHASE_MAX / 255.0
 
 
 def _normalize_to_uint16(arr: np.ndarray) -> np.ndarray:
-    """Normalize array to 0..65535 for PNG saving (robust to outliers)."""
+    """Normalize array to 0..65535 for PNG saving."""
     a = np.asarray(arr, dtype=np.float64)
     a = np.nan_to_num(a, nan=0.0, posinf=0.0, neginf=0.0)
     a = a - a.min()
@@ -107,11 +104,9 @@ def _cmap_to_uint8_rgb(arr: np.ndarray, cmap: str = "inferno") -> np.ndarray:
     if mx <= 0:
         a = np.zeros(a.shape, dtype=np.float64)
     else:
-        a = a / mx  # 0..1
-
-    rgba = mpl.colormaps.get_cmap(cmap)(a)  # (..., 4) float in 0..1
-    rgb = np.round(rgba[..., :3] * 255.0).astype(np.uint8)
-    return rgb
+        a = a / mx
+    rgba = mpl.colormaps.get_cmap(cmap)(a)  # (..., 4) float
+    return np.round(rgba[..., :3] * 255.0).astype(np.uint8)
 
 
 def _resolve_path(filename: str) -> Path | None:
@@ -119,7 +114,6 @@ def _resolve_path(filename: str) -> Path | None:
     p = Path(filename)
     if p.is_absolute():
         return p if p.exists() else None
-
     repo_root = Path(__file__).resolve().parents[2]
     candidates = [Path.cwd() / p, repo_root / p]
     return next((c.resolve() for c in candidates if c.exists()), None)
@@ -131,47 +125,36 @@ def _load_grayscale_u8(path: Path) -> np.ndarray:
 
 
 def _find_original_no_grating(img_path: Path) -> Path | None:
-    """
-    Best-effort: if input is '*_grating.bmp', try to load the matching non-grating BMP
-    next to it by stripping '_grating' from the stem.
-    """
     stem = img_path.stem
     if "_grating" not in stem:
         return None
-
     candidate = img_path.with_name(stem.replace("_grating", "") + img_path.suffix)
-    if candidate.exists():
-        return candidate.resolve()
-    return None
+    return candidate.resolve() if candidate.exists() else None
 
 
 def _as_bw_0_255(arr_u8: np.ndarray) -> np.ndarray:
-    """Force to pure 0/255 for display."""
     a = np.asarray(arr_u8, dtype=np.uint8)
     return np.where(a > 0, 255, 0).astype(np.uint8)
 
 
+def _phase_colorbar(cbar: mpl.colorbar.Colorbar) -> None:
+    cbar.set_label("Phase (rad)  [0 → 0, 255 → π]")
+    cbar.set_ticks([0.0, np.pi / 2.0, np.pi])
+    cbar.set_ticklabels(["0", "π/2", "π"])
+
+
 def _lognorm_for_intensity(intensity: np.ndarray) -> LogNorm:
-    """Choose a reasonable LogNorm even with zeros present."""
     i = np.asarray(intensity, dtype=np.float64)
     vmax = float(np.nanmax(i)) if np.isfinite(i).any() else 1.0
     if vmax <= 0:
         return LogNorm(vmin=1e-12, vmax=1.0)
-
     positive = i[i > 0]
     if positive.size == 0:
         vmin = 1e-12
     else:
-        # Avoid vmin being too tiny; use percentile for robustness, but not below vmax*1e-6.
         vmin = float(np.percentile(positive, 1))
         vmin = max(vmin, vmax * 1e-6)
     return LogNorm(vmin=vmin, vmax=vmax)
-
-def _phase_colorbar(cbar: mpl.colorbar.Colorbar) -> None:
-    """Format a colorbar in phase units [0, π] with nice π ticks."""
-    cbar.set_label("Phase (rad)  [0 → 0, 255 → π]")
-    cbar.set_ticks([0.0, np.pi / 2.0, np.pi])
-    cbar.set_ticklabels(["0", "π/2", "π"])
 
 
 def _macrorow_peaks(
@@ -181,16 +164,9 @@ def _macrorow_peaks(
     exclude_center: bool,
     center_half_width: int,
 ) -> list[dict[str, int | float]]:
-    """
-    For each macropixel row (horizontal band of height macro_h), find the brightest CCD spot (linear intensity).
-
-    Returns a list of dicts with:
-      macro_row, y_start, y_end, peak_x, peak_y, peak_intensity
-    """
     I = np.asarray(intensity, dtype=np.float64)
     h, w = I.shape
     cx = w // 2
-
     results: list[dict[str, int | float]] = []
     num_rows = int(np.ceil(h / macro_h)) if macro_h > 0 else 0
     for r in range(num_rows):
@@ -198,16 +174,13 @@ def _macrorow_peaks(
         y1 = min((r + 1) * macro_h, h)
         if y0 >= h:
             break
-
         band = I[y0:y1, :].copy()
         if exclude_center and center_half_width > 0:
             x0 = max(0, cx - center_half_width)
             x1 = min(w, cx + center_half_width + 1)
             band[:, x0:x1] = -np.inf
-
         flat_idx = int(np.nanargmax(band))
         by, bx = np.unravel_index(flat_idx, band.shape)
-        peak_val = float(band[by, bx])
         results.append(
             {
                 "macro_row": r,
@@ -215,11 +188,43 @@ def _macrorow_peaks(
                 "y_end": int(y1),
                 "peak_x": int(bx),
                 "peak_y": int(y0 + by),
-                "peak_intensity": peak_val,
+                "peak_intensity": float(band[by, bx]),
             }
         )
-
     return results
+
+
+def _parse_macro_cols_from_filename(path: Path) -> int | None:
+    """
+    Parse 'cXX' from filenames like ..._r16_c16_...
+    Returns None if not present.
+    """
+    m = re.search(r"_c(\d+)(?:_|$)", path.stem)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
+
+
+def _amplitude_gradient_map(height: int, width: int, macro_cols: int) -> np.ndarray:
+    """
+    Build amplitude map constant in each macropixel column.
+    Column 0 amplitude macro_cols, column 1 amplitude (macro_cols-1), ... rightmost column amplitude 1.
+    Repeated for all rows (no y dependence).
+    """
+    macro_cols = max(1, int(macro_cols))
+    macro_w = max(1, int(round(width / macro_cols)))
+
+    amps = np.arange(macro_cols, 0, -1, dtype=np.float32)
+    row = np.repeat(amps, macro_w)
+    if row.size < width:
+        row = np.pad(row, (0, width - row.size), mode="edge")
+    elif row.size > width:
+        row = row[:width]
+
+    return np.tile(row[None, :], (height, 1))
 
 
 def main() -> None:
@@ -237,16 +242,26 @@ def main() -> None:
         print(f"Loading (no grating):  {orig_path}")
         data_orig_u8 = _load_grayscale_u8(orig_path)
     else:
-        # Fallback: we cannot reliably "undo" the modulo grating; use the current input.
-        print("WARNING: Could not find a matching non-grating BMP (stem without '_grating').")
-        print("         Using the grating BMP also as the 'original' for plotting.")
+        print("WARNING: Could not find a matching non-grating BMP; using the grating BMP as 'original'.")
         data_orig_u8 = np.clip(data_grating, 0, 255).astype(np.uint8)
 
     data_orig_bw = _as_bw_0_255(data_orig_u8)
 
     # --- Physics Simulation (Phase Modulation) ---
     phase_map = (data_grating / PI_GRAY_LEVEL) * np.pi
-    input_field = 1.0 * np.exp(1j * phase_map)
+
+    # --- Amplitude gradient term (constant per macropixel column) ---
+    h, w = phase_map.shape
+    if AMPLITUDE_MODE.lower() == "gradient":
+        macro_cols = _parse_macro_cols_from_filename(img_path) or DEFAULT_MACRO_COLS
+        amp_map = _amplitude_gradient_map(h, w, macro_cols)
+        amp_note = f"Amplitude gradient \"{macro_cols} to 1\""
+    else:
+        amp_map = np.ones((h, w), dtype=np.float32)
+        amp_note = "uniform amplitude"
+
+    # Create the Optical Field (Complex Number): amplitude * exp(i*phase)
+    input_field = amp_map * np.exp(1j * phase_map)
 
     # Cylindrical Lens Propagation (1D FFT along x-axis, axis=1)
     fft_field = np.fft.fftshift(np.fft.fft(input_field, axis=1), axes=1)
@@ -256,7 +271,7 @@ def main() -> None:
     out_dir = img_path.parent
     stem = img_path.stem
 
-    # --- Readout: one intensity value per macropixel row (vertical-line spot) ---
+    # --- Readout: one intensity value per macropixel row ---
     peaks = _macrorow_peaks(
         intensity,
         MACROPIXEL_HEIGHT,
@@ -266,55 +281,71 @@ def main() -> None:
     if SAVE_MACROROW_PEAKS_CSV:
         out_csv = out_dir / f"{stem}_CCD_macrorow_peaks_linear.csv"
         with out_csv.open("w", newline="") as f:
-            w = csv.DictWriter(
+            wcsv = csv.DictWriter(
                 f,
                 fieldnames=["macro_row", "y_start", "y_end", "peak_x", "peak_y", "peak_intensity"],
             )
-            w.writeheader()
-            w.writerows(peaks)
+            wcsv.writeheader()
+            wcsv.writerows(peaks)
         print(f"Saved: {out_csv}")
     if peaks:
-        vals = np.array([p["peak_intensity"] for p in peaks], dtype=float)
+        vals = np.array([float(p["peak_intensity"]) for p in peaks], dtype=float)
         print(
             f"Macrorow peaks (linear): N={len(peaks)}, "
             f"min={vals.min():.3g}, median={np.median(vals):.3g}, max={vals.max():.3g}"
         )
 
-    # --- Linear color scaling for CCD plots (consistent across events) ---
+    # --- Linear CCD colormap scaling ---
     linear_vmin = 0.0
-    n_fft = int(intensity.shape[1])
-    n2 = float(n_fft * n_fft) if n_fft > 0 else 1.0
+    # Theoretical maximum for an unnormalized FFT row is (sum |amplitude|)^2 (if phases align).
+    amp_row = amp_map[0, :].astype(np.float64)
+    theoretical_max = float(np.sum(np.abs(amp_row)) ** 2) if amp_row.size else 1.0
 
     if LINEAR_VMAX_MODE == "theoretical_fraction":
-        linear_vmax = float(LINEAR_VMAX_FRACTION_OF_N2) * n2
-        linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_N2:g}·N² (N={n_fft})"
+        linear_vmax = float(LINEAR_VMAX_FRACTION_OF_THEORETICAL_MAX) * theoretical_max
+        linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_THEORETICAL_MAX:g}·(Σ|A|)²"
     elif LINEAR_VMAX_MODE == "fixed":
         if LINEAR_VMAX_FIXED is None:
-            linear_vmax = float(LINEAR_VMAX_FRACTION_OF_N2) * n2
-            linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_N2:g}·N² (N={n_fft}) [fallback]"
+            linear_vmax = float(LINEAR_VMAX_FRACTION_OF_THEORETICAL_MAX) * theoretical_max
+            linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_THEORETICAL_MAX:g}·(Σ|A|)² [fallback]"
         else:
             linear_vmax = float(LINEAR_VMAX_FIXED)
             linear_vmax_note = f"vmax=fixed={linear_vmax:.3g}"
     elif LINEAR_VMAX_MODE == "peaks_percentile":
         if peaks:
-            peak_vals = np.array([float(p['peak_intensity']) for p in peaks], dtype=float)
+            peak_vals = np.array([float(p["peak_intensity"]) for p in peaks], dtype=float)
             pctl = float(np.percentile(peak_vals, LINEAR_VMAX_PEAKS_PERCENTILE))
             linear_vmax = max(1.0, pctl * float(LINEAR_VMAX_PEAKS_MARGIN))
             linear_vmax_note = (
                 f"vmax=p{LINEAR_VMAX_PEAKS_PERCENTILE:g}(peaks)×{LINEAR_VMAX_PEAKS_MARGIN:g}={linear_vmax:.3g}"
             )
         else:
-            linear_vmax = float(LINEAR_VMAX_FRACTION_OF_N2) * n2
-            linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_N2:g}·N² (N={n_fft}) [no peaks]"
+            linear_vmax = float(LINEAR_VMAX_FRACTION_OF_THEORETICAL_MAX) * theoretical_max
+            linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_THEORETICAL_MAX:g}·(Σ|A|)² [no peaks]"
     else:
-        linear_vmax = float(LINEAR_VMAX_FRACTION_OF_N2) * n2
-        linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_N2:g}·N² (N={n_fft}) [unknown mode]"
+        linear_vmax = float(LINEAR_VMAX_FRACTION_OF_THEORETICAL_MAX) * theoretical_max
+        linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_THEORETICAL_MAX:g}·(Σ|A|)² [unknown mode]"
 
     if not np.isfinite(linear_vmax) or linear_vmax <= 0:
         linear_vmax = float(np.nanmax(intensity)) if np.isfinite(intensity).any() else 1.0
         linear_vmax_note = f"vmax=data_max={linear_vmax:.3g} [fallback]"
 
+    # For correct visualization: ensure the plot scale includes the true peak (avoid clipping).
+    # This prevents the brightest pixel from saturating at the same color as other near-max pixels.
+    finite_I = intensity[np.isfinite(intensity)]
+    data_max = float(np.max(finite_I)) if finite_I.size else 1.0
+    if LINEAR_ENSURE_NO_CLIP_IN_PLOTS and np.isfinite(data_max) and data_max > 0:
+        data_max *= float(LINEAR_DATA_MAX_MARGIN)
+        if data_max > linear_vmax:
+            linear_vmax = data_max
+            linear_vmax_note = f"{linear_vmax_note} → max(data)={linear_vmax:.3g}"
+
+    print(f"Amplitude term: {amp_note}")
     print(f"Linear CCD colormap scaling: vmin={linear_vmin:g}, vmax={linear_vmax:.3g} ({linear_vmax_note})")
+
+    # Use one shared Normalize object for ALL linear CCD subplots (FINAL + OVERVIEW),
+    # so the colormap mapping is guaranteed identical.
+    linear_norm = mpl.colors.Normalize(vmin=linear_vmin, vmax=linear_vmax, clip=True)
 
     # --- Save CCD images (optional) ---
     if SAVE_CCD_IMAGES:
@@ -335,11 +366,11 @@ def main() -> None:
             Image.fromarray(_cmap_to_uint8_rgb(intensity_log1p, cmap=LOG_CMAP)).save(str(out_log_cmap))
             print(f"Saved: {out_log_cmap}")
 
-    # --- Requested plots ---
+    # --- Plots (same layout as v3) ---
     figs: list[plt.Figure] = []
 
     if SAVE_PLOTS or SHOW_FIGURE:
-        # 1) Final 3-panel plot (original BW, input grating, CCD intensity linear)
+        # FINAL: original BW, grating input, CCD linear
         fig1, ax = plt.subplots(1, 3, figsize=(18, 6))
         figs.append(fig1)
 
@@ -350,7 +381,7 @@ def main() -> None:
             vmax=DISPLAY_PHASE_MAX,
             aspect="auto",
         )
-        ax[0].set_title("Original (no grating)\nBW (0/255)")
+        ax[0].set_title(r"Original Phase" "\n" r"[Black: $\phi = 0$; White: $\phi = \pi$]")
         ax[0].set_xlabel("x (px)")
         ax[0].set_ylabel("y (px)")
         c0 = fig1.colorbar(im0, ax=ax[0], fraction=0.046, pad=0.04)
@@ -372,34 +403,31 @@ def main() -> None:
         im2 = ax[2].imshow(
             intensity,
             cmap=LINEAR_CMAP,
-            vmin=linear_vmin,
-            vmax=linear_vmax,
+            norm=linear_norm,
             aspect="auto",
             interpolation="nearest",
             resample=False,
         )
         ax[2].set_title(
-            "CCD intensity (linear scale)\n(cylindrical lens focus)\n"
-            "(per-macropixel-row peak values annotated at right)"
+            "CCD intensity (linear scale)\nCylindrical lens focus\n"
+            f"{amp_note}\nPeak intensity values written at right"
         )
         ax[2].set_xlabel("k_x (FFT-shifted index)")
         ax[2].set_ylabel("y (px)")
         c2 = fig1.colorbar(im2, ax=ax[2], fraction=0.046, pad=0.04)
         c2.set_label(f"Intensity (a.u.) [{linear_vmax_note}]")
-        # Put numerical peak intensity values (linear scale) for each macropixel row.
-        # NOTE: cyan dots are shown only on the LOG plot (below), not on linear plots.
+
+        # Per-row peak numbers (shared exponent)
         if peaks:
             peak_vals = np.array([float(p["peak_intensity"]) for p in peaks], dtype=float)
-            vmax = float(np.max(peak_vals)) if peak_vals.size else 0.0
-            if vmax > 0:
-                common_exp = int(np.floor(np.log10(vmax)))
+            vmaxp = float(np.max(peak_vals)) if peak_vals.size else 0.0
+            if vmaxp > 0:
+                common_exp = int(np.floor(np.log10(vmaxp)))
                 scale = 10.0**common_exp
             else:
                 common_exp = 0
                 scale = 1.0
 
-            # Write the shared exponent once (so all row labels share it).
-            # Example: "×10^5" meaning each label is mantissa in that scale.
             ax[2].text(
                 0.02,
                 0.98,
@@ -416,15 +444,16 @@ def main() -> None:
             for p in peaks:
                 y_mid = 0.5 * (float(p["y_start"]) + float(p["y_end"]))
                 mantissa = float(p["peak_intensity"]) / scale if scale != 0 else 0.0
+                peak_rgba = mpl.colormaps.get_cmap(LINEAR_CMAP)(linear_norm(float(p["peak_intensity"])))
                 ax[2].text(
                     x_text,
                     y_mid,
                     f"{mantissa:6.2f}",
-                    color="white",
+                    color=peak_rgba,
                     fontsize=8,
                     ha="right",
                     va="center",
-                    bbox=dict(boxstyle="round,pad=0.15", fc="black", ec="none", alpha=0.45),
+                    path_effects=[pe.withStroke(linewidth=2, foreground="black")],
                 )
 
         fig1.tight_layout()
@@ -433,7 +462,7 @@ def main() -> None:
             fig1.savefig(str(out_fig1), dpi=220, bbox_inches="tight")
             print(f"Saved: {out_fig1}")
 
-        # 2) Original BW + CCD intensity log plot (colored)
+        # LOG: original BW + CCD log1p colored, with cyan dots
         fig2, ax2 = plt.subplots(1, 2, figsize=(13, 6))
         figs.append(fig2)
 
@@ -444,7 +473,9 @@ def main() -> None:
             vmax=DISPLAY_PHASE_MAX,
             aspect="auto",
         )
-        ax2[0].set_title("Original (no grating)\nBW (0/255)")
+        ax2[0].set_title(
+            r"Original Phase" "\n" r"[Black: $\phi = 0$; White: $\phi = \pi$]"
+        )
         ax2[0].set_xlabel("x (px)")
         ax2[0].set_ylabel("y (px)")
         c20 = fig2.colorbar(im20, ax=ax2[0], fraction=0.046, pad=0.04)
@@ -467,7 +498,7 @@ def main() -> None:
                 [p["peak_x"] for p in peaks],
                 [p["peak_y"] for p in peaks],
                 s=10,
-                c="red",
+                c="cyan",
                 marker="o",
                 linewidths=0,
                 alpha=0.9,
@@ -479,7 +510,7 @@ def main() -> None:
             fig2.savefig(str(out_fig2), dpi=220, bbox_inches="tight")
             print(f"Saved: {out_fig2}")
 
-        # 3) Extra "brilliant" overview plot (2x2) for fast inspection
+        # OVERVIEW: 2x2
         fig3, ax3 = plt.subplots(2, 2, figsize=(16, 12))
         figs.append(fig3)
 
@@ -490,7 +521,7 @@ def main() -> None:
             vmax=DISPLAY_PHASE_MAX,
             aspect="auto",
         )
-        ax3[0, 0].set_title("Original (no grating) BW")
+        ax3[0, 0].set_title(r"Original Phase" "\n" r"[Black: $\phi = 0$; White: $\phi = \pi$]")
         ax3[0, 0].set_xlabel("x (px)")
         ax3[0, 0].set_ylabel("y (px)")
         _phase_colorbar(fig3.colorbar(im30, ax=ax3[0, 0], fraction=0.046, pad=0.04))
@@ -510,8 +541,7 @@ def main() -> None:
         im32 = ax3[1, 0].imshow(
             intensity,
             cmap=LINEAR_CMAP,
-            vmin=linear_vmin,
-            vmax=linear_vmax,
+            norm=linear_norm,
             aspect="auto",
             interpolation="nearest",
             resample=False,
@@ -519,10 +549,49 @@ def main() -> None:
         ax3[1, 0].set_title("CCD intensity (linear)")
         ax3[1, 0].set_xlabel("k_x (FFT-shifted index)")
         ax3[1, 0].set_ylabel("y (px)")
-        fig3.colorbar(im32, ax=ax3[1, 0], fraction=0.046, pad=0.04).set_label("Intensity (a.u.)")
+        fig3.colorbar(im32, ax=ax3[1, 0], fraction=0.046, pad=0.04).set_label(
+            f"Intensity (a.u.) [{linear_vmax_note}]"
+        )
 
-        # Use log1p(intensity) for the overview plot to match the standalone saved image
-        # and avoid visual striping artifacts that can appear with LogNorm+resampling.
+        # Same peak intensity values at right as in *_FINAL.png
+        if peaks:
+            peak_vals = np.array([float(p["peak_intensity"]) for p in peaks], dtype=float)
+            vmaxp = float(np.max(peak_vals)) if peak_vals.size else 0.0
+            if vmaxp > 0:
+                common_exp = int(np.floor(np.log10(vmaxp)))
+                scale = 10.0**common_exp
+            else:
+                common_exp = 0
+                scale = 1.0
+
+            ax3[1, 0].text(
+                0.02,
+                0.98,
+                rf"$\times 10^{{{common_exp}}}$",
+                transform=ax3[1, 0].transAxes,
+                ha="left",
+                va="top",
+                fontsize=10,
+                color="white",
+                bbox=dict(boxstyle="round,pad=0.2", fc="black", ec="none", alpha=0.45),
+            )
+
+            x_text = intensity.shape[1] - 5
+            for p in peaks:
+                y_mid = 0.5 * (float(p["y_start"]) + float(p["y_end"]))
+                mantissa = float(p["peak_intensity"]) / scale if scale != 0 else 0.0
+                peak_rgba = mpl.colormaps.get_cmap(LINEAR_CMAP)(linear_norm(float(p["peak_intensity"])))
+                ax3[1, 0].text(
+                    x_text,
+                    y_mid,
+                    f"{mantissa:6.2f}",
+                    color=peak_rgba,
+                    fontsize=7,
+                    ha="right",
+                    va="center",
+                    path_effects=[pe.withStroke(linewidth=2, foreground="black")],
+                )
+
         im33 = ax3[1, 1].imshow(
             intensity_log1p,
             cmap=LOG_CMAP,
@@ -538,7 +607,8 @@ def main() -> None:
         fig3.tight_layout()
         if SAVE_PLOTS:
             out_fig3 = out_dir / f"{stem}_FFT_cylindrical_lens_OVERVIEW.png"
-            fig3.savefig(str(out_fig3), dpi=220, bbox_inches="tight")
+            # Slightly higher DPI to preserve narrow bright peaks in the overview layout
+            fig3.savefig(str(out_fig3), dpi=300, bbox_inches="tight")
             print(f"Saved: {out_fig3}")
 
     if SHOW_FIGURE and figs:
