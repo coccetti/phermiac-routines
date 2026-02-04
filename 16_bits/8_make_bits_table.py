@@ -29,9 +29,9 @@ BASE_DIR = Path(__file__).resolve().parent
 # SECONDS_CSV = BASE_DIR / "data" / "CERN-02_sec1221_nbit16.csv"
 # OUT_CSV = BASE_DIR / "data" / "SLM_bits_CERN-01_event1221_CERN-02_sec1221_nbit16.csv"
 
-EVENT_CSV = BASE_DIR / "data" / "CERN-01_event1221_nbit16.csv"
-SECONDS_CSV = BASE_DIR / "data" / "SLM_16x16bits_CERN-02_sec1221.dat"
-OUT_CSV = BASE_DIR / "data" / "SLM_16x16bits_CERN-01_event1221_CERN-02_sec1221_nbit16.dat"
+EVENT_CSV = BASE_DIR / "data" / "CERN-01_event3_nbit16.csv"
+SECONDS_CSV = BASE_DIR / "data" / "SLM_16x16bits_CERN-02_sec3.dat"
+OUT_CSV = BASE_DIR / "data" / "SLM_16x16bits_CERN-01_event3_CERN-02_sec3.dat"
 
 def _read_bit_lines(path: Path) -> List[str]:
     if not path.exists():
