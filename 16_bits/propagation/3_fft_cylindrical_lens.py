@@ -64,11 +64,26 @@ CENTER_EXCLUSION_HALF_WIDTH_PX = 35  # exclude columns [cx-hw, cx+hw]
 PI_GRAY_LEVEL = 108.0
 
 # Plot styling
-# NOTE: The CCD intensity has a huge dynamic range; for "linear scale" plots we keep a linear mapping
-# but CLIP vmax to a high percentile so the vertical lines are visible (still linear, just saturated).
 LINEAR_CMAP = "inferno"
 LOG_CMAP = "viridis"
-LINEAR_VMAX_PERCENTILE = 99.9  # 99.5..99.95 are reasonable; lower = more contrast, more clipping
+
+# Display convention for legends/colorbars:
+# express grayscale patterns in phase units [0; π] with mapping 0 -> 0 and 255 -> π.
+DISPLAY_PHASE_MAX = np.pi
+DISPLAY_PHASE_SCALE = DISPLAY_PHASE_MAX / 255.0  # gray * scale -> phase
+
+# --- Linear CCD color normalization (for consistent comparisons across events) ---
+# Goal: the SAME linear intensity value should map to the SAME color across runs.
+# That means you should avoid per-image autoscaling (percentiles over the whole image),
+# because the huge central peak changes the mapping and makes vertical lines look different.
+#
+# Recommended default: scale to a fixed fraction of the theoretical maximum intensity.
+# For an unnormalized FFT of length N with unit amplitude, the maximum possible intensity is N^2.
+LINEAR_VMAX_MODE = "theoretical_fraction"  # "theoretical_fraction" | "fixed" | "peaks_percentile"
+LINEAR_VMAX_FRACTION_OF_N2 = 0.50          # used when mode="theoretical_fraction" (0.3..1.0 typical)
+LINEAR_VMAX_FIXED = None                  # used when mode="fixed" (set a number, e.g. 4e5)
+LINEAR_VMAX_PEAKS_PERCENTILE = 99.0       # used when mode="peaks_percentile" (auto per-image)
+LINEAR_VMAX_PEAKS_MARGIN = 1.10           # multiply peaks-percentile by this margin
 
 
 def _normalize_to_uint16(arr: np.ndarray) -> np.ndarray:
@@ -152,6 +167,12 @@ def _lognorm_for_intensity(intensity: np.ndarray) -> LogNorm:
         vmin = max(vmin, vmax * 1e-6)
     return LogNorm(vmin=vmin, vmax=vmax)
 
+def _phase_colorbar(cbar: mpl.colorbar.Colorbar) -> None:
+    """Format a colorbar in phase units [0, π] with nice π ticks."""
+    cbar.set_label("Phase (rad)  [0 → 0, 255 → π]")
+    cbar.set_ticks([0.0, np.pi / 2.0, np.pi])
+    cbar.set_ticklabels(["0", "π/2", "π"])
+
 
 def _macrorow_peaks(
     intensity: np.ndarray,
@@ -232,17 +253,6 @@ def main() -> None:
     intensity = np.abs(fft_field) ** 2
     intensity_log1p = np.log1p(intensity)
 
-    # Robust vmax for linear visualization (keeps scale linear, but avoids a single huge peak
-    # washing out the whole colormap).
-    finite_I = intensity[np.isfinite(intensity)]
-    if finite_I.size:
-        linear_vmax = float(np.percentile(finite_I, LINEAR_VMAX_PERCENTILE))
-    else:
-        linear_vmax = 1.0
-    if not np.isfinite(linear_vmax) or linear_vmax <= 0:
-        linear_vmax = float(np.nanmax(intensity)) if np.isfinite(intensity).any() else 1.0
-    linear_vmin = 0.0
-
     out_dir = img_path.parent
     stem = img_path.stem
 
@@ -269,6 +279,42 @@ def main() -> None:
             f"Macrorow peaks (linear): N={len(peaks)}, "
             f"min={vals.min():.3g}, median={np.median(vals):.3g}, max={vals.max():.3g}"
         )
+
+    # --- Linear color scaling for CCD plots (consistent across events) ---
+    linear_vmin = 0.0
+    n_fft = int(intensity.shape[1])
+    n2 = float(n_fft * n_fft) if n_fft > 0 else 1.0
+
+    if LINEAR_VMAX_MODE == "theoretical_fraction":
+        linear_vmax = float(LINEAR_VMAX_FRACTION_OF_N2) * n2
+        linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_N2:g}·N² (N={n_fft})"
+    elif LINEAR_VMAX_MODE == "fixed":
+        if LINEAR_VMAX_FIXED is None:
+            linear_vmax = float(LINEAR_VMAX_FRACTION_OF_N2) * n2
+            linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_N2:g}·N² (N={n_fft}) [fallback]"
+        else:
+            linear_vmax = float(LINEAR_VMAX_FIXED)
+            linear_vmax_note = f"vmax=fixed={linear_vmax:.3g}"
+    elif LINEAR_VMAX_MODE == "peaks_percentile":
+        if peaks:
+            peak_vals = np.array([float(p['peak_intensity']) for p in peaks], dtype=float)
+            pctl = float(np.percentile(peak_vals, LINEAR_VMAX_PEAKS_PERCENTILE))
+            linear_vmax = max(1.0, pctl * float(LINEAR_VMAX_PEAKS_MARGIN))
+            linear_vmax_note = (
+                f"vmax=p{LINEAR_VMAX_PEAKS_PERCENTILE:g}(peaks)×{LINEAR_VMAX_PEAKS_MARGIN:g}={linear_vmax:.3g}"
+            )
+        else:
+            linear_vmax = float(LINEAR_VMAX_FRACTION_OF_N2) * n2
+            linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_N2:g}·N² (N={n_fft}) [no peaks]"
+    else:
+        linear_vmax = float(LINEAR_VMAX_FRACTION_OF_N2) * n2
+        linear_vmax_note = rf"vmax={LINEAR_VMAX_FRACTION_OF_N2:g}·N² (N={n_fft}) [unknown mode]"
+
+    if not np.isfinite(linear_vmax) or linear_vmax <= 0:
+        linear_vmax = float(np.nanmax(intensity)) if np.isfinite(intensity).any() else 1.0
+        linear_vmax_note = f"vmax=data_max={linear_vmax:.3g} [fallback]"
+
+    print(f"Linear CCD colormap scaling: vmin={linear_vmin:g}, vmax={linear_vmax:.3g} ({linear_vmax_note})")
 
     # --- Save CCD images (optional) ---
     if SAVE_CCD_IMAGES:
@@ -297,19 +343,31 @@ def main() -> None:
         fig1, ax = plt.subplots(1, 3, figsize=(18, 6))
         figs.append(fig1)
 
-        im0 = ax[0].imshow(data_orig_bw, cmap="gray", vmin=0, vmax=255, aspect="auto")
+        im0 = ax[0].imshow(
+            data_orig_bw.astype(np.float32) * DISPLAY_PHASE_SCALE,
+            cmap="gray",
+            vmin=0.0,
+            vmax=DISPLAY_PHASE_MAX,
+            aspect="auto",
+        )
         ax[0].set_title("Original (no grating)\nBW (0/255)")
         ax[0].set_xlabel("x (px)")
         ax[0].set_ylabel("y (px)")
         c0 = fig1.colorbar(im0, ax=ax[0], fraction=0.046, pad=0.04)
-        c0.set_label("Gray level")
+        _phase_colorbar(c0)
 
-        im1 = ax[1].imshow(np.clip(data_grating, 0, 255), cmap="gray", vmin=0, vmax=255, aspect="auto")
+        im1 = ax[1].imshow(
+            np.clip(data_grating, 0, 255) * DISPLAY_PHASE_SCALE,
+            cmap="gray",
+            vmin=0.0,
+            vmax=DISPLAY_PHASE_MAX,
+            aspect="auto",
+        )
         ax[1].set_title("SLM input (with grating)\n(as loaded)")
         ax[1].set_xlabel("x (px)")
         ax[1].set_ylabel("y (px)")
         c1 = fig1.colorbar(im1, ax=ax[1], fraction=0.046, pad=0.04)
-        c1.set_label("Gray level")
+        _phase_colorbar(c1)
 
         im2 = ax[2].imshow(
             intensity,
@@ -327,7 +385,7 @@ def main() -> None:
         ax[2].set_xlabel("k_x (FFT-shifted index)")
         ax[2].set_ylabel("y (px)")
         c2 = fig1.colorbar(im2, ax=ax[2], fraction=0.046, pad=0.04)
-        c2.set_label(f"Intensity (a.u.) [clipped at p{LINEAR_VMAX_PERCENTILE:g}]")
+        c2.set_label(f"Intensity (a.u.) [{linear_vmax_note}]")
         # Put numerical peak intensity values (linear scale) for each macropixel row.
         # NOTE: cyan dots are shown only on the LOG plot (below), not on linear plots.
         if peaks:
@@ -379,12 +437,18 @@ def main() -> None:
         fig2, ax2 = plt.subplots(1, 2, figsize=(13, 6))
         figs.append(fig2)
 
-        im20 = ax2[0].imshow(data_orig_bw, cmap="gray", vmin=0, vmax=255, aspect="auto")
+        im20 = ax2[0].imshow(
+            data_orig_bw.astype(np.float32) * DISPLAY_PHASE_SCALE,
+            cmap="gray",
+            vmin=0.0,
+            vmax=DISPLAY_PHASE_MAX,
+            aspect="auto",
+        )
         ax2[0].set_title("Original (no grating)\nBW (0/255)")
         ax2[0].set_xlabel("x (px)")
         ax2[0].set_ylabel("y (px)")
         c20 = fig2.colorbar(im20, ax=ax2[0], fraction=0.046, pad=0.04)
-        c20.set_label("Gray level")
+        _phase_colorbar(c20)
 
         im21 = ax2[1].imshow(
             intensity_log1p,
@@ -419,17 +483,29 @@ def main() -> None:
         fig3, ax3 = plt.subplots(2, 2, figsize=(16, 12))
         figs.append(fig3)
 
-        im30 = ax3[0, 0].imshow(data_orig_bw, cmap="gray", vmin=0, vmax=255, aspect="auto")
+        im30 = ax3[0, 0].imshow(
+            data_orig_bw.astype(np.float32) * DISPLAY_PHASE_SCALE,
+            cmap="gray",
+            vmin=0.0,
+            vmax=DISPLAY_PHASE_MAX,
+            aspect="auto",
+        )
         ax3[0, 0].set_title("Original (no grating) BW")
         ax3[0, 0].set_xlabel("x (px)")
         ax3[0, 0].set_ylabel("y (px)")
-        fig3.colorbar(im30, ax=ax3[0, 0], fraction=0.046, pad=0.04).set_label("Gray level")
+        _phase_colorbar(fig3.colorbar(im30, ax=ax3[0, 0], fraction=0.046, pad=0.04))
 
-        im31 = ax3[0, 1].imshow(np.clip(data_grating, 0, 255), cmap="gray", vmin=0, vmax=255, aspect="auto")
+        im31 = ax3[0, 1].imshow(
+            np.clip(data_grating, 0, 255) * DISPLAY_PHASE_SCALE,
+            cmap="gray",
+            vmin=0.0,
+            vmax=DISPLAY_PHASE_MAX,
+            aspect="auto",
+        )
         ax3[0, 1].set_title("Input (with grating)")
         ax3[0, 1].set_xlabel("x (px)")
         ax3[0, 1].set_ylabel("y (px)")
-        fig3.colorbar(im31, ax=ax3[0, 1], fraction=0.046, pad=0.04).set_label("Gray level")
+        _phase_colorbar(fig3.colorbar(im31, ax=ax3[0, 1], fraction=0.046, pad=0.04))
 
         im32 = ax3[1, 0].imshow(
             intensity,
