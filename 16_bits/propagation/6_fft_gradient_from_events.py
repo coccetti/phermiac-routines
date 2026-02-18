@@ -27,14 +27,15 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
+from matplotlib.gridspec import GridSpec
 import matplotlib.patheffects as pe
 from PIL import Image
 
 
 # --- CONFIGURATION ---
 # Filename of the BMP to load (typically the *_grating.bmp output of 0_apply_grating_separation.py)
-# FILENAME = "16_bits/propagation/img/SLM_16x16bits_CERN-01_event3_CERN-02_sec3_960x960_r16_c16_w108_grating.bmp"
-FILENAME = "16_bits/propagation/img/SLM_16x16bits_CERN-01_event3_CERN-02_sec3_960x960_r16_c16_w108_gradient_grating.bmp"
+FILENAME = "16_bits/propagation/img/SLM_16x16bits_CERN-01_event3_CERN-02_sec3_960x960_r16_c16_w108_grating.bmp"
+# FILENAME = "16_bits/propagation/img/SLM_16x16bits_CERN-01_event3_CERN-02_sec3_960x960_r16_c16_w108_gradient_grating.bmp"
 
 # Additional input files for the FROM_EVENTS plot (individual event/sec images and combined)
 FILENAME_CERN01_EVENT = "16_bits/propagation/img/input/SLM_16x16bits_CERN-01_event3_960x960_r16_c16_w108.bmp"
@@ -61,8 +62,8 @@ CENTER_EXCLUSION_HALF_WIDTH_PX = 35  # exclude columns [cx-hw, cx+hw]
 # Amplitude term
 # - "fixed": A(x,y) = 1 everywhere
 # - "gradient": A is constant in each macropixel column, decreasing left->right (16..1 for c16)
-# AMPLITUDE_MODE = "gradient"  # "fixed" | "gradient"
-AMPLITUDE_MODE = "fixed"  # "fixed" | "gradient"
+AMPLITUDE_MODE = "gradient"  # "fixed" | "gradient"
+# AMPLITUDE_MODE = "fixed"  # "fixed" | "gradient"
 DEFAULT_MACRO_COLS = 16  # used if we can't parse cXX from filename
 
 # Physical Parameters
@@ -453,7 +454,7 @@ def main() -> None:
         if ZOOM_CCD_X:
             ax[2].set_xlim(CCD_X_MIN, CCD_X_MAX)
         ax[2].set_title(
-            "$\mathbf{CCD\ intensity\ for\ cylindrical\ lens\ focus\ (linear\ scale)}$" "\n"
+            r"$\mathbf{CCD\ intensity\ for\ cylindrical\ lens\ focus\ (linear\ scale)}$" "\n"
             f"{amp_note}"
         )
         ax[2].set_xlabel("k_x (FFT-shifted index)")
@@ -514,53 +515,79 @@ def main() -> None:
             and data_combined_bw is not None
         )
         if can_make_from_events:
-            fig4, ax4 = plt.subplots(
-                1,
-                3,
-                figsize=(22, 6),
-                gridspec_kw={"width_ratios": [1.0, 1.0, 2.2]},
-            )
+            # Make all 3 phase plots (CERN-01, CERN-02, Combined) square, like Original Phase in FINAL
+            # width_ratios [0.5, 1.0, 2.2]: col1 width = 22/3.7 ≈ 5.95"
+            # For square: combined height = 5.95", CERN each = 2.975" -> fig height = 5.95
+            fig4 = plt.figure(figsize=(22, 5.95))
             figs.append(fig4)
+            gs = GridSpec(
+                2,
+                3,
+                figure=fig4,
+                width_ratios=[0.5, 1.0, 2.2],
+                height_ratios=[1.0, 1.0],
+                hspace=0.35,
+                wspace=0.25,
+            )
+            ax4_cern01 = fig4.add_subplot(gs[0, 0])  # top left
+            ax4_cern02 = fig4.add_subplot(gs[1, 0])  # bottom left
+            ax4_combined = fig4.add_subplot(gs[:, 1])  # same proportion as FINAL 1st
+            ax4_ccd = fig4.add_subplot(gs[:, 2])
 
-            # Subplot 1: CERN-01_event and CERN-02_sec side by side in black and white
-            events_combined = np.hstack(
-                [data_cern01_bw.astype(np.float32), data_cern02_bw.astype(np.float32)]
-            ) * DISPLAY_PHASE_SCALE
-            im40 = ax4[0].imshow(
-                events_combined,
+            # Top: CERN-01_event3
+            im40a = ax4_cern01.imshow(
+                data_cern01_bw.astype(np.float32) * DISPLAY_PHASE_SCALE,
                 cmap="gray",
                 vmin=0.0,
                 vmax=DISPLAY_PHASE_MAX,
                 aspect="auto",
             )
-            ax4[0].set_title(
-                r"$\mathbf{CERN\text{-}01\ event\ \&\ CERN\text{-}02\ sec}$" "\n"
-                r"$\it{[black:}\ \varphi = 0\ \it{;\ white:}\ \varphi = \pi\it{]}$"
+            ax4_cern01.set_title(
+                "CERN-01 event",
+                fontweight="bold",
             )
-            ax4[0].set_xlabel("x (px)")
-            ax4[0].set_ylabel("y (px)")
-            c40 = fig4.colorbar(im40, ax=ax4[0], fraction=0.046, pad=0.04)
-            _phase_colorbar(c40)
+            ax4_cern01.set_xlabel("x (px)")
+            ax4_cern01.set_ylabel("y (px)")
+            c40a = fig4.colorbar(im40a, ax=ax4_cern01, fraction=0.046, pad=0.04)
+            _phase_colorbar(c40a)
 
-            # Subplot 2: Combined (CERN-01_event3_CERN-02_sec3) in black and white
-            im41 = ax4[1].imshow(
+            # Bottom: CERN-02_sec3
+            im40b = ax4_cern02.imshow(
+                data_cern02_bw.astype(np.float32) * DISPLAY_PHASE_SCALE,
+                cmap="gray",
+                vmin=0.0,
+                vmax=DISPLAY_PHASE_MAX,
+                aspect="auto",
+            )
+            ax4_cern02.set_title(
+                "CERN-02 sec",
+                fontweight="bold",
+            )
+            ax4_cern02.set_xlabel("x (px)")
+            ax4_cern02.set_ylabel("y (px)")
+            c40b = fig4.colorbar(im40b, ax=ax4_cern02, fraction=0.046, pad=0.04)
+            _phase_colorbar(c40b)
+
+            # Combined (CERN-01_event3_CERN-02_sec3) in black and white
+            im41 = ax4_combined.imshow(
                 data_combined_bw.astype(np.float32) * DISPLAY_PHASE_SCALE,
                 cmap="gray",
                 vmin=0.0,
                 vmax=DISPLAY_PHASE_MAX,
                 aspect="auto",
             )
-            ax4[1].set_title(
-                r"$\mathbf{Combined\ Phase\ (event\ \&\ sec)}$" "\n"
-                r"$\it{[black:}\ \varphi = 0\ \it{;\ white:}\ \varphi = \pi\it{]}$"
+            ax4_combined.set_title(
+                "Combined Phase (event & sec)\n"
+                + r"$\it{[black:}\ \varphi = 0\ \it{;\ white:}\ \varphi = \pi\it{]}$",
+                fontweight="bold",
             )
-            ax4[1].set_xlabel("x (px)")
-            ax4[1].set_ylabel("y (px)")
-            c41 = fig4.colorbar(im41, ax=ax4[1], fraction=0.046, pad=0.04)
+            ax4_combined.set_xlabel("x (px)")
+            ax4_combined.set_ylabel("y (px)")
+            c41 = fig4.colorbar(im41, ax=ax4_combined, fraction=0.046, pad=0.04)
             _phase_colorbar(c41)
 
-            # Subplot 3: CCD intensity for cylindrical lens focus (linear scale)
-            im42 = ax4[2].imshow(
+            # CCD intensity for cylindrical lens focus (linear scale)
+            im42 = ax4_ccd.imshow(
                 intensity,
                 cmap=LINEAR_CMAP,
                 norm=linear_norm,
@@ -569,14 +596,14 @@ def main() -> None:
                 resample=False,
             )
             if ZOOM_CCD_X:
-                ax4[2].set_xlim(CCD_X_MIN, CCD_X_MAX)
-            ax4[2].set_title(
-                "$\mathbf{CCD\ intensity\ for\ cylindrical\ lens\ focus\ (linear\ scale)}$" "\n"
-                f"{amp_note}"
+                ax4_ccd.set_xlim(CCD_X_MIN, CCD_X_MAX)
+            ax4_ccd.set_title(
+                "CCD intensity for cylindrical lens focus (linear scale)\n" f"{amp_note}",
+                fontweight="bold",
             )
-            ax4[2].set_xlabel("k_x (FFT-shifted index)")
-            ax4[2].set_ylabel("y (px)")
-            c42 = fig4.colorbar(im42, ax=ax4[2], fraction=0.046, pad=0.04)
+            ax4_ccd.set_xlabel("k_x (FFT-shifted index)")
+            ax4_ccd.set_ylabel("y (px)")
+            c42 = fig4.colorbar(im42, ax=ax4_ccd, fraction=0.046, pad=0.04)
             c42.set_label(f"Intensity (a.u.) [{linear_vmax_note}]")
 
             if peaks:
@@ -588,11 +615,11 @@ def main() -> None:
                 else:
                     common_exp = 0
                     scale = 1.0
-                ax4[2].text(
+                ax4_ccd.text(
                     0.02,
                     0.98,
                     rf"$\times 10^{{{common_exp}}}$",
-                    transform=ax4[2].transAxes,
+                    transform=ax4_ccd.transAxes,
                     ha="left",
                     va="top",
                     fontsize=11,
@@ -606,7 +633,7 @@ def main() -> None:
                     peak_rgba = mpl.colormaps.get_cmap(LINEAR_CMAP)(
                         linear_norm(float(p["peak_intensity"]))
                     )
-                    ax4[2].text(
+                    ax4_ccd.text(
                         x_text,
                         y_mid,
                         f"{mantissa:6.2f}",

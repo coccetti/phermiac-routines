@@ -38,7 +38,8 @@ from PIL import Image
 
 # --- CONFIGURATION ---
 # Filename of the BMP to load (typically the *_grating.bmp output of 0_apply_grating_separation.py)
-FILENAME = "16_bits/propagation/img/SLM_16x16bits_CERN-01_event3_CERN-02_sec3_960x960_r16_c16_w108_grating.bmp"
+# FILENAME = "16_bits/propagation/img/SLM_16x16bits_CERN-01_event3_CERN-02_sec3_960x960_r16_c16_w108_grating.bmp"
+FILENAME = "16_bits/propagation/img/SLM_16x16bits_CERN-01_event3_CERN-02_sec3_960x960_r16_c16_w108_gradient_grating.bmp"
 
 # Output (saved next to the input image by default)
 SAVE_CCD_IMAGES = True            # save simulated CCD intensity images (linear + optional log1p) as PNG
@@ -60,8 +61,8 @@ CENTER_EXCLUSION_HALF_WIDTH_PX = 35  # exclude columns [cx-hw, cx+hw]
 # Amplitude term
 # - "fixed": A(x,y) = 1 everywhere
 # - "gradient": A is constant in each macropixel column, decreasing left->right (16..1 for c16)
-AMPLITUDE_MODE = "gradient"  # "fixed" | "gradient"
-# AMPLITUDE_MODE = "fixed"  # "fixed" | "gradient"
+# AMPLITUDE_MODE = "gradient"  # "fixed" | "gradient"
+AMPLITUDE_MODE = "fixed"  # "fixed" | "gradient"
 DEFAULT_MACRO_COLS = 16  # used if we can't parse cXX from filename
 
 # Physical Parameters
